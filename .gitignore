@@ -1,0 +1,17 @@
+*~
+.DS_Store
+._*
+cscope.out
+cscope.files
+tags
+
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+
+.*.lint
+*.lprof
+.idle/*
+
+*.png
