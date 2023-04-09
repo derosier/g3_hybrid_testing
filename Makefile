@@ -1,6 +1,6 @@
 all: chk_all
 
-PY_FILES = $(filter-out ./reavire/%, $(shell find . -type f -name '*.py'))
+PY_FILES = $(shell find . -type f -name '*.py')
 LINT_FILES = $(join $(dir $(PY_FILES)), $(patsubst %.py, .%.lint, $(notdir $(PY_FILES))))
 
 .%.lint: %.py
