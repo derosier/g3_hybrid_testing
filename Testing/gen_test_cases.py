@@ -19,19 +19,17 @@ logging.basicConfig(format=lineformat, level=args.verbosity.upper(),
 TEST_NUM = 0
 LP_PAIR = 1
 LP_AGE = 2
-LP_PLC = 3
-LP_METAL = 4
-LP_LENGTH = 5
-LP_GAUGE = 6
-LP_NODES = 7
-LP_NOISE = 8
-LP_COUPLED = 9
+LP_METAL = 3
+LP_LENGTH = 4
+LP_GAUGE = 5
+LP_NODES = 6
+LP_NOISE = 7
+LP_COUPLED = 8
 
 plc_header = [
               'Test Num',
               'Comm Pair',
               'Age',
-              'PLC',
               'Type',
               'Line Length',
               'Gauge',
@@ -42,25 +40,23 @@ plc_header = [
 
 plc_line_params = [
     [], # used to line up with the header, ignore this one
-    ['L1-L2', 'L-N'],
+    ['L-N', 'L1-L2'],
     ['modern', '30 years', '60 years'], # wiring age
-    ['none', 'Enphase'], # other PLC interference
     ['Aluminum', 'Copper'],
     [1, 10, 20, 30, 50, 100], # Line length in meters
     [6, 8, 10, 12, 14], # wire gauge
     ['none', 'breaker', 'relay', 'bus work', 'LED', 'CFL', 'Induction Motor',
      'Power Strip', 'Surge Protector', 'Dimmer Switch+light'], # Nodes and line loads
-    ['none', 'EN 50160:2010', 'IEC 61000-4-13'], # Harmonic noise
+    ['none', 'EN 50160:2010', 'IEC 61000-4-13', 'Enhase'], # Noise and interference
     ['none', '2', '5'], # Coupled lines
 ]
 
 #pylint: disable=too-many-arguments
-def make_plc_test(test_num, pair, age, plc, metal, length,
+def make_plc_test(test_num, pair, age, metal, length,
                   guage, nodes, noise, coupled):
     test = { plc_header[TEST_NUM]: test_num,
              plc_header[LP_PAIR]: pair,
              plc_header[LP_AGE]: age,
-             plc_header[LP_PLC]: plc,
              plc_header[LP_METAL]: metal,
              plc_header[LP_LENGTH]: length,
              plc_header[LP_GAUGE]: guage,
@@ -79,26 +75,24 @@ def gen_plc_tests():
     # First pass is a naive attempt to generate all combinations.
     for pair in plc_line_params[LP_PAIR]:
         for age in plc_line_params[LP_AGE]:
-            for plc in plc_line_params[LP_PLC]:
-                for metal in plc_line_params[LP_METAL]:
-                    for length in plc_line_params[LP_LENGTH]:
-                        for guage in plc_line_params[LP_GAUGE]:
-                            for nodes in plc_line_params[LP_NODES]:
-                                for noise in plc_line_params[LP_NOISE]:
-                                    for coupled in plc_line_params[LP_COUPLED]:
-                                        atest = make_plc_test(test_num,
-                                                              pair,
-                                                              age,
-                                                              plc,
-                                                              metal,
-                                                              length,
-                                                              guage,
-                                                              nodes,
-                                                              noise,
-                                                              coupled)
-                                        logging.debug(f"Test: {atest}")
-                                        tests.append(atest)
-                                        test_num += 1
+            for metal in plc_line_params[LP_METAL]:
+                for length in plc_line_params[LP_LENGTH]:
+                    for guage in plc_line_params[LP_GAUGE]:
+                        for nodes in plc_line_params[LP_NODES]:
+                            for noise in plc_line_params[LP_NOISE]:
+                                for coupled in plc_line_params[LP_COUPLED]:
+                                    atest = make_plc_test(test_num,
+                                                          pair,
+                                                          age,
+                                                          metal,
+                                                          length,
+                                                          guage,
+                                                          nodes,
+                                                          noise,
+                                                          coupled)
+                                    logging.debug(f"Test: {atest}")
+                                    tests.append(atest)
+                                    test_num += 1
     logging.info(f"{test_num-1} tests generated")
     return tests
 
