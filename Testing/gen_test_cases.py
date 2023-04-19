@@ -4,6 +4,7 @@ import logging
 import argparse
 import csv
 import sys
+from collections import namedtuple
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-V", "--verbosity", default="INFO", help="Logging verbosity. [CRITICAL, ERROR, WARNING, INFO, DEBUG]")
@@ -52,18 +53,18 @@ plc_line_params = [
     ['none', '2', '5'], # Coupled lines
 ]
 
-#pylint: disable=too-many-arguments
-def make_plc_test(test_num, pair, age, metal, length,
-                  guage, nodes, noise, coupled):
+LP_Params = namedtuple("LP_Params", "pair, age, metal, length, guage, nodes, noise, coupled")
+
+def make_plc_test(test_num, lp_params):
     test = { plc_header[TEST_NUM]: test_num,
-             plc_header[LP_PAIR]: pair,
-             plc_header[LP_AGE]: age,
-             plc_header[LP_METAL]: metal,
-             plc_header[LP_LENGTH]: length,
-             plc_header[LP_GAUGE]: guage,
-             plc_header[LP_NODES]: nodes,
-             plc_header[LP_NOISE]: noise,
-             plc_header[LP_COUPLED]: coupled,
+             plc_header[LP_PAIR]: lp_params.pair,
+             plc_header[LP_AGE]: lp_params.age,
+             plc_header[LP_METAL]: lp_params.metal,
+             plc_header[LP_LENGTH]: lp_params.length,
+             plc_header[LP_GAUGE]: lp_params.guage,
+             plc_header[LP_NODES]: lp_params.nodes,
+             plc_header[LP_NOISE]: lp_params.noise,
+             plc_header[LP_COUPLED]: lp_params.coupled,
     }
     return test
 #pylint: enable=too-many-arguments
@@ -82,8 +83,7 @@ def gen_plc_tests():
                         for nodes in plc_line_params[LP_NODES]:
                             for noise in plc_line_params[LP_NOISE]:
                                 for coupled in plc_line_params[LP_COUPLED]:
-                                    atest = make_plc_test(test_num,
-                                                          pair,
+                                    lp_params = LP_Params(pair,
                                                           age,
                                                           metal,
                                                           length,
@@ -91,6 +91,7 @@ def gen_plc_tests():
                                                           nodes,
                                                           noise,
                                                           coupled)
+                                    atest = make_plc_test(test_num, lp_params)
                                     logging.debug(f"Test: {atest}")
                                     tests.append(atest)
                                     test_num += 1
