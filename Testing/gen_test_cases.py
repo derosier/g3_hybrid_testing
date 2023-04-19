@@ -40,22 +40,83 @@ plc_header = [
               'Coupling',
 ]
 
+Value = namedtuple("Value", "value, use, metric, time, test_set")
+
+# The below structure defines the variables and their properties that we generate all the
+# combinations of variables to create the test cases from. We have list that contains the
+# individual variable sets, and in each of those, a list of the actual variable values.
+# Each value is then a tuple that contains the actual value as well as meta-data used to
+# compute meta-data for each test case.
+# So...:
+# everything [
+#     independant variable list [
+#         value tuple (
+#             value,
+#             use,
+#             priority metric,
+#             time cost,
+#             test set {VV, model, smoke}
+#         , True, 100, 10, {'VV', 'model', 'smoke'}), ...
+#     ], ...
+# ]
+#
 plc_line_params = [
     [], # used to line up with the header, ignore this one
-    ['L-N', 'L1-L2'],
-    ['modern', '30 years', '60 years'], # wiring age
-    ['Aluminum', 'Copper'],
-    [1, 10, 20, 30, 50, 100], # Line length in meters
-    [6, 8, 10, 12, 14], # wire gauge
-    ['none', 'breaker', 'relay', 'bus work', 'LED', 'CFL', 'Induction Motor',
-     'Power Strip', 'Surge Protector', 'Dimmer Switch+light'], # Nodes and line loads
-    ['none', 'EN 50160:2010', 'IEC 61000-4-13', 'Enhase'], # Noise and interference
-    ['none', '2', '5'], # Coupled lines
+    # Comm legs
+    [Value('L-N', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('L1-L2', True, 100, 10, {'VV', 'model', 'smoke'})],
+    # Wiring Age
+    [Value('modern', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('30 years', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('60 years', True, 100, 10, {'VV', 'model', 'smoke'})],
+    # Wire type
+    [Value('Aluminum', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('Copper', True, 100, 10, {'VV', 'model', 'smoke'})],
+    # Wire length in meters
+    [Value(1, True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value(10, True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value(20, True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value(30, True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value(50, True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value(100, True, 100, 10, {'VV', 'model', 'smoke'})],
+    # Wire gauge in AWG
+    [Value(6, True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value(8, True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value(10, True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value(12, True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value(14, True, 100, 10, {'VV', 'model', 'smoke'})],
+    # Node types and line loads
+    [Value('none', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('breaker', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('relay', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('bus work', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('LED', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('CFL', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('Induction Motor', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('Power Strip', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('Surge Protector', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('Dimmer Switch+light', True, 100, 10, {'VV', 'model', 'smoke'})],
+    # Interference and noise
+    [Value('none', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('EN 50160:2010', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('IEC 61000-4-13', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('Enhase', True, 100, 10, {'VV', 'model', 'smoke'})],
+    # Number of wires coupling
+    [Value('none', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('2', True, 100, 10, {'VV', 'model', 'smoke'}),
+     Value('5', True, 100, 10, {'VV', 'model', 'smoke'})],
 ]
 
 LP_Params = namedtuple("LP_Params", "pair, age, metal, length, guage, nodes, noise, coupled")
 
 def make_plc_test(test_num, lp_params):
+    # First filter out anything we aren't going to use. If 'use' is false in ANY of the parameters
+    # we don't want to use it.
+    for param in lp_params:
+        if param.use is False:
+            return None
+
+    # Now construct the test case
     test = { plc_header[TEST_NUM]: test_num,
              plc_header[LP_PAIR]: lp_params.pair,
              plc_header[LP_AGE]: lp_params.age,
@@ -93,6 +154,8 @@ def gen_plc_tests():
                                                           coupled)
                                     atest = make_plc_test(test_num, lp_params)
                                     logging.debug(f"Test: {atest}")
+                                    if atest is None:
+                                        continue
                                     tests.append(atest)
                                     test_num += 1
     logging.info(f"{test_num-1} tests generated")
