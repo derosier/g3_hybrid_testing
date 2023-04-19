@@ -7,6 +7,7 @@ import sys
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-V", "--verbosity", default="INFO", help="Logging verbosity. [CRITICAL, ERROR, WARNING, INFO, DEBUG]")
+parser.add_argument("-n", "--dryrun", help="Run but don't produce CSV", action='store_true')
 parser.add_argument("filename", nargs='?', default="-", help="Optional file to write out, STDOUT otherwise")
 args = parser.parse_args()
 
@@ -98,11 +99,17 @@ def gen_plc_tests():
 
 def write_plc_tests(filename, tests):
     #pylint: disable=consider-using-with
-    logging.debug("Writing full set of tests to {filename}")
+    logging.debug(f"Writing full set of tests to {filename}")
+    logging.debug("Suppressing output due to --dryrun")
+
+    if args.dryrun:
+        return
+
     if filename == '-':
         csvfile = sys.stdout
     else:
         csvfile = open(filename, 'w', newline='',  encoding="utf-8")
+
     writer = csv.DictWriter(csvfile, fieldnames=plc_header)
     writer.writeheader()
     for atest in tests:
