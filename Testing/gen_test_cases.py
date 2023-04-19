@@ -17,6 +17,62 @@ lineformat = "%(asctime)s: [%(levelname)s] %(message)s"
 logging.basicConfig(format=lineformat, level=args.verbosity.upper(),
                     datefmt="%H:%M:%S")
 
+Value = namedtuple("Value", "value, use, metric, time, test_set")
+MetaData = namedtuple("MetaData", "priority, time_cost, vv, model, smoke")
+
+MD_PRIORITY = 0
+MD_TIME = 1
+MD_VV = 2
+MD_MODEL = 3
+MD_SMOKE = 4
+
+# Test case meta-data
+meta_data_header = [
+                    'Priority',
+                    'Time',
+                    'Test: VV',
+                    'Test: model',
+                    'Test: smoke'
+]
+
+def calculate_meta_data(params):
+    # Run through the common meta-data for all the variables and compute the necessary
+    # meta-data.
+    test_set = {'VV', 'model', 'smoke'} # Base set of all
+    priority = 0
+    time_cost = 0
+    for param in params:
+        # First filter out anything we aren't going to use. If 'use' is false in ANY of the
+        # parameters we don't want to use it.
+        if param.use is False:
+            return None
+
+        # Filter test sets. For something to be in a given test set, all the variables need to have
+        # that test set set.
+        test_set = test_set & param.test_set
+
+        # Calculate priority metric. This is simple addition, higher is better
+        priority = priority + param.metric
+
+        # Calculate time-cost. We average the time, for now just sum it up.
+        time_cost = time_cost + param.time
+
+    # post processing
+    time_cost = time_cost / len(params)
+    if len(test_set) == 0: # If not included in any test set, filter it out
+        return None
+    if (args.set is not None) and (args.set not in test_set): # Filter it IN if we set the cmd-line param
+        return None
+    ts_VV = 'VV' in test_set
+    ts_model = 'model' in test_set
+    ts_smoke = 'smoke' in test_set
+
+    return MetaData(priority, time_cost, ts_VV, ts_model, ts_smoke)
+
+####################################################################################################
+# PLC variable parameters
+####################################################################################################
+
 # Below indexes into both plc_header as well as plc_line_params
 # keep these in the same order and with the indexes working OK.
 TEST_NUM = 0
@@ -28,12 +84,6 @@ LP_GAUGE = 5
 LP_NODES = 6
 LP_NOISE = 7
 LP_COUPLED = 8
-# The below are only used as headers, not as index into plc_line_params. Add more above this line.
-LP_PRIORITY = 9
-LP_TIME = 10
-LP_VV = 11
-LP_MODEL = 12
-LP_SMOKE = 13
 
 plc_header = [
               'Test Num',
@@ -122,37 +172,10 @@ plc_line_params = [
 LP_Params = namedtuple("LP_Params", "pair, age, metal, length, guage, nodes, noise, coupled")
 
 def make_plc_test(test_num, lp_params):
-
-    # Run through the common meta-data for all the variables and compute the necessary
-    # meta-data.
-    test_set = {'VV', 'model', 'smoke'} # Base set of all
-    priority = 0
-    time_cost = 0
-    for param in lp_params:
-        # First filter out anything we aren't going to use. If 'use' is false in ANY of the
-        # parameters we don't want to use it.
-        if param.use is False:
-            return None
-
-        # Filter test sets. For something to be in a given test set, all the variables need to have
-        # that test set set.
-        test_set = test_set & param.test_set
-
-        # Calculate priority metric. This is simple addition, higher is better
-        priority = priority + param.metric
-
-        # Calculate time-cost. We average the time, for now just sum it up.
-        time_cost = time_cost + param.time
-
-    # post processing
-    time_cost = time_cost / len(lp_params)
-    if len(test_set) == 0: # If not included in any test set, filter it out
+    # process metadata
+    metadata = calculate_meta_data(lp_params)
+    if metadata is None:
         return None
-    if (args.set is not None) and (args.set not in test_set): # Filter it IN if we set the cmd-line param
-        return None
-    ts_VV = 'VV' in test_set
-    ts_model = 'model' in test_set
-    ts_smoke = 'smoke' in test_set
 
     # Now construct the test case
     test = { plc_header[TEST_NUM]: test_num,
@@ -164,14 +187,13 @@ def make_plc_test(test_num, lp_params):
              plc_header[LP_NODES]: lp_params.nodes.value,
              plc_header[LP_NOISE]: lp_params.noise.value,
              plc_header[LP_COUPLED]: lp_params.coupled.value,
-             plc_header[LP_PRIORITY]: priority,
-             plc_header[LP_TIME]: time_cost,
-             plc_header[LP_VV]: 'VV' if ts_VV else '',
-             plc_header[LP_MODEL]: 'model' if ts_model else '',
-             plc_header[LP_SMOKE]: 'smoke' if ts_smoke else '',
+             meta_data_header[MD_PRIORITY]: metadata.priority,
+             meta_data_header[MD_TIME]: metadata.time_cost,
+             meta_data_header[MD_VV]: 'VV' if metadata.vv else '',
+             meta_data_header[MD_MODEL]: 'model' if metadata.model else '',
+             meta_data_header[MD_SMOKE]: 'smoke' if metadata.smoke else '',
     }
     return test
-#pylint: enable=too-many-arguments
 
 def gen_plc_tests():
     #pylint: disable=too-many-nested-blocks
@@ -196,9 +218,9 @@ def gen_plc_tests():
                                                           noise,
                                                           coupled)
                                     atest = make_plc_test(test_num, lp_params)
-                                    logging.debug(f"Test: {atest}")
                                     if atest is None:
                                         continue
+                                    logging.debug(f"Test: {atest}")
                                     tests.append(atest)
                                     test_num += 1
     logging.info(f"{test_num-1} tests generated")
@@ -217,7 +239,7 @@ def write_plc_tests(filename, tests):
     else:
         csvfile = open(filename, 'w', newline='',  encoding="utf-8")
 
-    writer = csv.DictWriter(csvfile, fieldnames=plc_header)
+    writer = csv.DictWriter(csvfile, fieldnames=plc_header+meta_data_header)
     writer.writeheader()
     for atest in tests:
         writer.writerow(atest)
