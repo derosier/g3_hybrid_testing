@@ -9,9 +9,10 @@ from collections import namedtuple
 parser = argparse.ArgumentParser()
 parser.add_argument("-V", "--verbosity", default="INFO", help="Logging verbosity. [CRITICAL, ERROR, WARNING, INFO, DEBUG]")
 parser.add_argument("-n", "--dryrun", help="Run but don't produce CSV", action='store_true')
+parser.add_argument("-s", "--set", help="Filter output by test set", choices={'VV', 'model', 'smoke'})
 parser.add_argument("filename", nargs='?', default="-", help="Optional file to write out, STDOUT otherwise")
 args = parser.parse_args()
-
+print(args.set)
 lineformat = "%(asctime)s: [%(levelname)s] %(message)s"
 logging.basicConfig(format=lineformat, level=args.verbosity.upper(),
                     datefmt="%H:%M:%S")
@@ -27,6 +28,12 @@ LP_GAUGE = 5
 LP_NODES = 6
 LP_NOISE = 7
 LP_COUPLED = 8
+# The below are only used as headers, not as index into plc_line_params. Add more above this line.
+LP_PRIORITY = 9
+LP_TIME = 10
+LP_VV = 11
+LP_MODEL = 12
+LP_SMOKE = 13
 
 plc_header = [
               'Test Num',
@@ -38,6 +45,11 @@ plc_header = [
               'Nodes',
               'Noise',
               'Coupling',
+              'Priority',
+              'Time',
+              'Test: VV',
+              'Test: metric',
+              'Test: smoke'
 ]
 
 Value = namedtuple("Value", "value, use, metric, time, test_set")
@@ -63,69 +75,100 @@ Value = namedtuple("Value", "value, use, metric, time, test_set")
 plc_line_params = [
     [], # used to line up with the header, ignore this one
     # Comm legs
-    [Value('L-N', True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value('L1-L2', True, 100, 10, {'VV', 'model', 'smoke'})],
+    [Value('L-N', True, 1000, 10, {'VV', 'model', 'smoke'}),
+     Value('L1-L2', False, 500, 10, {'VV', 'model', 'smoke'})],
     # Wiring Age
     [Value('modern', True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value('30 years', True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value('60 years', True, 100, 10, {'VV', 'model', 'smoke'})],
+     Value('30 years', False, 100, 10, {'model'}),
+     Value('60 years', False, 100, 10, {'model'})],
     # Wire type
-    [Value('Aluminum', True, 100, 10, {'VV', 'model', 'smoke'}),
+    [Value('Aluminum', False, 100, 10, {'VV', 'model'}),
      Value('Copper', True, 100, 10, {'VV', 'model', 'smoke'})],
     # Wire length in meters
-    [Value(1, True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value(10, True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value(20, True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value(30, True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value(50, True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value(100, True, 100, 10, {'VV', 'model', 'smoke'})],
+    [Value(1, True, 50, 10, {'VV', 'model', 'smoke'}),
+     Value(10, True, 40, 10, {'model'}),
+     Value(20, True, 30, 10, {'model'}),
+     Value(30, True, 30, 10, {'model'}),
+     Value(50, True, 40, 10, {'VV', 'model'}),
+     Value(100, True, 50, 10, {'VV', 'model', 'smoke'})],
     # Wire gauge in AWG
-    [Value(6, True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value(8, True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value(10, True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value(12, True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value(14, True, 100, 10, {'VV', 'model', 'smoke'})],
+    [Value(6, True, 20, 10, {'VV', 'model', 'smoke'}),
+     Value(8, True, 0, 10, {'model'}),
+     Value(10, True, 0, 10, {'model'}),
+     Value(12, True, 20, 10, {'VV', 'model', 'smoke'}),
+     Value(14, True, 0, 10, {'model'})],
     # Node types and line loads
-    [Value('none', True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value('breaker', True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value('relay', True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value('bus work', True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value('LED', True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value('CFL', True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value('Induction Motor', True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value('Power Strip', True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value('Surge Protector', True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value('Dimmer Switch+light', True, 100, 10, {'VV', 'model', 'smoke'})],
+    [Value('none', True, 500, 10, {'VV', 'model', 'smoke'}),
+     Value('breaker', True, 500, 10, {'VV', 'model', 'smoke'}),
+     Value('relay', True, 500, 10, {'VV', 'model', 'smoke'}),
+     Value('bus work', True, 100, 10, {'model'}),
+     Value('LED', True, 300, 10, {'VV', 'model', 'smoke'}),
+     Value('CFL', True, 300, 10, {'model'}),
+     Value('Induction Motor', True, 100, 10, {'model'}),
+     Value('Power Strip', True, 100, 10, {'model'}),
+     Value('Surge Protector', True, 100, 10, {'VV', 'model'}),
+     Value('Dimmer Switch+light', True, 100, 10, {'model'})],
     # Interference and noise
-    [Value('none', True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value('EN 50160:2010', True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value('IEC 61000-4-13', True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value('Enhase', True, 100, 10, {'VV', 'model', 'smoke'})],
+    [Value('none', True, 500, 10, {'VV', 'model', 'smoke'}),
+     Value('EN 50160:2010', True, 100, 10, {'VV', 'model'}),
+     Value('IEC 61000-4-13', True, 100, 10, {'VV', 'model'}),
+     Value('Enphase', True, 50, 10, {'model'})],
     # Number of wires coupling
-    [Value('none', True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value('2', True, 100, 10, {'VV', 'model', 'smoke'}),
-     Value('5', True, 100, 10, {'VV', 'model', 'smoke'})],
+    [Value('none', True, 500, 10, {'VV', 'model', 'smoke'}),
+     Value('2', True, 100, 10, {'model'}),
+     Value('5', True, 100, 10, {'model'})],
 ]
 
 LP_Params = namedtuple("LP_Params", "pair, age, metal, length, guage, nodes, noise, coupled")
 
 def make_plc_test(test_num, lp_params):
-    # First filter out anything we aren't going to use. If 'use' is false in ANY of the parameters
-    # we don't want to use it.
+
+    # Run through the common meta-data for all the variables and compute the necessary
+    # meta-data.
+    test_set = {'VV', 'model', 'smoke'} # Base set of all
+    priority = 0
+    time_cost = 0
     for param in lp_params:
+        # First filter out anything we aren't going to use. If 'use' is false in ANY of the
+        # parameters we don't want to use it.
         if param.use is False:
             return None
 
+        # Filter test sets. For something to be in a given test set, all the variables need to have
+        # that test set set.
+        test_set = test_set & param.test_set
+
+        # Calculate priority metric. This is simple addition, higher is better
+        priority = priority + param.metric
+
+        # Calculate time-cost. We average the time, for now just sum it up.
+        time_cost = time_cost + param.time
+
+    # post processing
+    time_cost = time_cost / len(lp_params)
+    if len(test_set) == 0: # If not included in any test set, filter it out
+        return None
+    if (args.set is not None) and (args.set not in test_set): # Filter it IN if we set the cmd-line param
+        return None
+    ts_VV = 'VV' in test_set
+    ts_model = 'model' in test_set
+    ts_smoke = 'smoke' in test_set
+
     # Now construct the test case
     test = { plc_header[TEST_NUM]: test_num,
-             plc_header[LP_PAIR]: lp_params.pair,
-             plc_header[LP_AGE]: lp_params.age,
-             plc_header[LP_METAL]: lp_params.metal,
-             plc_header[LP_LENGTH]: lp_params.length,
-             plc_header[LP_GAUGE]: lp_params.guage,
-             plc_header[LP_NODES]: lp_params.nodes,
-             plc_header[LP_NOISE]: lp_params.noise,
-             plc_header[LP_COUPLED]: lp_params.coupled,
+             plc_header[LP_PAIR]: lp_params.pair.value,
+             plc_header[LP_AGE]: lp_params.age.value,
+             plc_header[LP_METAL]: lp_params.metal.value,
+             plc_header[LP_LENGTH]: lp_params.length.value,
+             plc_header[LP_GAUGE]: lp_params.guage.value,
+             plc_header[LP_NODES]: lp_params.nodes.value,
+             plc_header[LP_NOISE]: lp_params.noise.value,
+             plc_header[LP_COUPLED]: lp_params.coupled.value,
+             plc_header[LP_PRIORITY]: priority,
+             plc_header[LP_TIME]: time_cost,
+             plc_header[LP_VV]: 'VV' if ts_VV else '',
+             plc_header[LP_MODEL]: 'model' if ts_model else '',
+             plc_header[LP_SMOKE]: 'smoke' if ts_smoke else '',
     }
     return test
 #pylint: enable=too-many-arguments
