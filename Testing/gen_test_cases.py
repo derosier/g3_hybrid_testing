@@ -133,13 +133,13 @@ plc_line_params = [
     [Value(1, True, 50, 10, {'VV', 'model', 'smoke'}),
      Value(10, True, 40, 10, {'model'}),
      Value(20, True, 30, 10, {'model'}),
-     Value(30, True, 30, 10, {'model'}),
+     Value(30, False, 30, 10, {'model'}),
      Value(50, True, 40, 10, {'VV', 'model'}),
      Value(100, True, 50, 10, {'VV', 'model', 'smoke'})],
     # Wire gauge in AWG
     [Value(6, True, 20, 10, {'VV', 'model', 'smoke'}),
-     Value(8, True, 0, 10, {'model'}),
-     Value(10, True, 0, 10, {'model'}),
+     Value(8, False, 0, 10, {'model'}),
+     Value(10, False, 0, 10, {'model'}),
      Value(12, True, 20, 10, {'VV', 'model', 'smoke'}),
      Value(14, True, 0, 10, {'model'})],
     # Node types and line loads
@@ -147,8 +147,8 @@ plc_line_params = [
      Value('breaker', True, 500, 10, {'VV', 'model', 'smoke'}),
      Value('relay', True, 500, 10, {'VV', 'model', 'smoke'}),
      Value('bus work', True, 100, 10, {'model'}),
-     Value('LED', True, 300, 10, {'VV', 'model', 'smoke'}),
-     Value('CFL', True, 300, 10, {'model'}),
+     Value('LED', True, 300, 10, {'VV', 'smoke'}),
+     Value('CFL', False, 300, 10, {'model'}),
      Value('Induction Motor', True, 100, 10, {'model'}),
      Value('Power Strip', True, 100, 10, {'model'}),
      Value('Surge Protector', True, 100, 10, {'VV', 'model'}),
@@ -160,7 +160,7 @@ plc_line_params = [
      Value('Enphase', True, 50, 10, {'model'})],
     # Number of wires coupling
     [Value('none', True, 500, 10, {'VV', 'model', 'smoke'}),
-     Value('2', True, 100, 10, {'model'}),
+     Value('2', False, 100, 10, {'model'}),
      Value('5', True, 100, 10, {'model'})],
 ]
 
@@ -264,14 +264,14 @@ rf_line_params = [
     [], # used to line up with the header, ignore this one
     # Location/Weather
     [Value('indoor', True, 500, 10, {'VV', 'model', 'smoke'}),
-     Value('clear', True, 500, 10, {'VV', 'model'}),
-     Value('rain', True, 100, 10, {'model'}),
-     Value('fog', True, 100, 10, {'model'})],
+     Value('outdoor', True, 500, 10, {'VV', 'model'}),
+     Value('rain', False, 100, 10, {'model'}),
+     Value('fog', False, 100, 10, {'model'})],
     # Distance
-    [Value(1, True, 50, 10, {'VV', 'model', 'smoke'}),
+    [Value(1, False, 50, 10, {'VV', 'model', 'smoke'}),
      Value(10, True, 40, 10, {'model'}),
      Value(20, True, 30, 10, {'model'}),
-     Value(30, True, 30, 10, {'model'}),
+     Value(30, False, 30, 10, {'model'}),
      Value(50, True, 40, 10, {'VV', 'model'}),
      Value(100, True, 50, 10, {'VV', 'model', 'smoke'})],
     # Obstacles
@@ -283,12 +283,12 @@ rf_line_params = [
          Value('masonry wall', True, 400, 10, {'model'}),
          Value('sheetrock metal-stud wall', True, 300, 10, {'model'}),
          Value('floor up', True, 300, 10, {'model'}),
-         Value('floor down', True, 100, 10, {'model'}),
+         Value('floor down', False, 100, 10, {'model'}),
          Value('metal cabinet', True, 100, 10, {'model'}),
          Value('living room', True, 500, 10, {'VV', 'model'}),
          Value('office', True, 100, 10, {'model'})],
     'outdoor':
-        [Value('none', True, 500, 10, {'VV', 'model', 'smoke'}),
+        [Value('none', False, 500, 10, {'VV', 'model', 'smoke'}),
          Value('indoor to outdoor', True, 500, 10, {'VV', 'model'}),
          Value('wooden shed', True, 100, 10, {'model'}),
          Value('metal shed', True, 100, 10, {'model'}),
