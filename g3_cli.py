@@ -8,6 +8,10 @@ import signal
 import serial
 
 import g3_comms.g3_rx
+import g3_comms.g3_msgs
+from g3_comms import g3_resp
+
+resp_HWReset = g3_resp.HWReset()
 
 default_port="/dev/ttyACM0"
 
@@ -30,6 +34,9 @@ def main():
     logging.info(f'Using port {port}')
 
     signal.signal(signal.SIGINT, shutdown_handler)
+
+    g3_comms.g3_msgs.msg_decode_list.append(resp_HWReset)
+    logging.debug(f"Registered messages for decode: {g3_comms.g3_msgs.msg_decode_list}")
 
     device = serial.Serial(port, baudrate=115200, timeout=0)
     logging.info(f"Opened serial port {device.name}")
