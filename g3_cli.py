@@ -29,10 +29,8 @@ g3_comms.g3_msgs.msg_decode_list.append(resp_HWReset)
 g3_comms.g3_msgs.msg_decode_list.append(resp_DBGTool)
 
 # Instantiate a global instance of every command we might want to send
-g3_comms.g3_msgs.msg_cmds['dbgtool'] = g3_cmd.DBGToolCmd()
+g3_comms.g3_msgs.msg_cmds['dbgtool'] = g3_cmd.DBGToolCmd(subparsers)
 
-cmd_parsers = {}
-cmd_parsers['dbgtool'] = subparsers.add_parser('dbgtool', help='Use debugtool info command')
 args = parser.parse_args()
 
 lineformat = "%(asctime)s: [%(levelname)s] %(message)s"

@@ -5,11 +5,15 @@ class G3Cmd():
     g3_id = 0xFE  # this is not used in the doc
     g3_name = 'UNKNOWN'
     rx_msgs = []
-    def __init__(self):
+    def __init__(self, subparsers):
         self.raw = b''
         self.fields = {}
         self.callback = None
         self.rx_got = {}
+        self.parser = self._add_parser(subparsers)
+
+    def _add_parser(self, _):
+        return False
 
     def parse_args(self, args):
         logging.debug(f"{self.g3_name}.parse_args({args})")
@@ -57,6 +61,9 @@ class DBGToolCmd(G3Cmd):
     HI_DBG_INFO = 0
     HI_DBG_USART_TRC_CONF = 1
     HI_DBG_LED_CONF = 2
+
+    def _add_parser(self, subparsers):
+        return subparsers.add_parser('dbgtool', help='Use debugtool info command')
 
     def parse_args(self, args):
         self.fields['subcmd'] = self.HI_DBG_INFO
