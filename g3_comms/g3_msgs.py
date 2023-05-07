@@ -11,4 +11,5 @@ def decodeMsg(msg):
             logging.debug("Found supported message")
             decoder.decode(msg)
             decoder.pr_decode()
+            decoder.call_hook()
             break

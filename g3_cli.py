@@ -11,13 +11,15 @@ import g3_comms.g3_rx
 import g3_comms.g3_msgs
 from g3_comms import g3_resp
 
-resp_HWReset = g3_resp.HWReset()
-
 default_port="/dev/ttyACM0"
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-p", "--port", default=default_port, help=f"Serial port, default {default_port}")
 parser.add_argument("-V", "--verbosity", default="INFO", help="Logging verbosity. [CRITICAL, ERROR, WARNING, INFO, DEBUG]")
+
+# Instantiate a global instance of every response we want to process on Rx
+resp_HWReset = g3_resp.HWResetResp()
+g3_comms.g3_msgs.msg_decode_list.append(resp_HWReset)
 args = parser.parse_args()
 
 lineformat = "%(asctime)s: [%(levelname)s] %(message)s"
@@ -35,7 +37,6 @@ def main():
 
     signal.signal(signal.SIGINT, shutdown_handler)
 
-    g3_comms.g3_msgs.msg_decode_list.append(resp_HWReset)
     logging.debug(f"Registered messages for decode: {g3_comms.g3_msgs.msg_decode_list}")
 
     device = serial.Serial(port, baudrate=115200, timeout=0)
@@ -45,6 +46,7 @@ def main():
     rx_thread = threading.Thread(target=rx_protocol.run)
     rx_thread.start()
 
+    # Cleanup and quit
     rx_thread.join()
 
 if __name__ == "__main__":
