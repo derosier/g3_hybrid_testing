@@ -1,6 +1,7 @@
 import logging
 
 msg_decode_list = []
+msg_cmds = {}
 
 def decodeMsg(msg):
     if msg is None:
