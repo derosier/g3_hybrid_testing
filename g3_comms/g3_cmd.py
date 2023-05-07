@@ -53,6 +53,9 @@ class G3Cmd():
         except KeyError:
             logging.warning("Cmd callback called for non-registered Rx message.")
 
+# Below commands are defined in the Datasheet AN5603 from ST.
+
+# Datasheet pp 55
 class DBGToolCmd(G3Cmd):
     g3_id = 0x14
     g3_name = 'HOSTIF-DBGTOOL'

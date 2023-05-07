@@ -27,6 +27,9 @@ class G3Resp():
         if self.callback is not None:
             self.callback(self.cb_context, self.g3_name, self.fields)
 
+# Below responses are defined in the Datasheet AN5603 from ST.
+
+# Datasheet pp 49
 class HWResetResp(G3Resp):
     g3_id = 0x01
     g3_name = 'HOSTIF-HWRESET'
@@ -41,6 +44,7 @@ class HWResetResp(G3Resp):
         else:
             self.fields['security_code'] = 'none'
 
+# Datasheet pp 56
 class DBGToolResp(G3Resp):
     g3_id = 0x15
     g3_name = 'HOSTIF-DBGTOOL'
