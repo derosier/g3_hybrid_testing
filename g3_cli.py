@@ -19,7 +19,7 @@ parser = argparse.ArgumentParser()
 subparsers = parser.add_subparsers(dest='cmd')
 parser.add_argument("-p", "--port", default=default_port, help=f"Serial port, default {default_port}")
 parser.add_argument("-V", "--verbosity", default="INFO", help="Logging verbosity. [CRITICAL, ERROR, WARNING, INFO, DEBUG]")
-parser.add_argument("-d", "--dump", action="store_true", help="Dump all messages recieved, sniffer mode")
+parser.add_argument("-d", "--dump", action="store_true", help="Dump all messages recieved, don't return after sending message")
 parser.add_argument("-n", "--count", type=int, default=0, help="Number of times to repeat a command or to recieve messages")
 
 # Instantiate a global instance of every response we want to process on Rx
@@ -43,6 +43,7 @@ def shutdown_handler(signum, frame): # pylint: disable=unused-argument
 
 def main():
     logging.debug("*** Starting cli")
+    logging.debug(f"args: {args}")
 
     port = args.port
     logging.info(f'Using port {port}')
@@ -61,13 +62,18 @@ def main():
     # Now that we can Rx responses, now process and run commands
     logging.debug(f"Command entered {args.cmd}")
     if args.cmd:
+        if args.dump:
+            print("--dump enabled, enter ^C to exit")
         try:
             g3_comms.g3_msgs.msg_cmds[args.cmd].parse_args(args)
             g3_comms.g3_msgs.msg_cmds[args.cmd].setup_rx(g3_comms.g3_msgs.msg_decode_list)
             g3_comms.g3_tx.send_and_wait(device, g3_comms.g3_msgs.msg_cmds[args.cmd])
         except KeyError:
             print(f"Unrecognized command {args.cmd}. Exiting.")
-        g3_comms.g3_rx.G3Rx.quit()
+        if not args.dump:
+            g3_comms.g3_rx.G3Rx.quit()
+    else:
+        print("No command, in dump mode, enter ^C to exit")
 
     # Cleanup and quit
     rx_thread.join()
