@@ -55,6 +55,19 @@ class G3Cmd():
 
 # Below commands are defined in the Datasheet AN5603 from ST.
 
+# Datasheet pp 49
+class HWResetCmd(G3Cmd):
+    g3_id = 0x00
+    g3_name = 'HOSTIF-HWRESET'
+    rx_msgs = ['HOSTIF-HWRESET']
+
+    def _add_parser(self, subparsers):
+        return subparsers.add_parser('hwreset', help='Issue HWReset request')
+
+    def encode_cmd(self):
+        logging.debug("HOSTIF-HWRESET.Requst has no data to encode")
+        return b''
+
 # Datasheet pp 55
 class DBGToolCmd(G3Cmd):
     g3_id = 0x14

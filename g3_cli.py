@@ -30,6 +30,7 @@ g3_comms.g3_msgs.msg_decode_list.append(resp_DBGTool)
 
 # Instantiate a global instance of every command we might want to send
 g3_comms.g3_msgs.msg_cmds['dbgtool'] = g3_cmd.DBGToolCmd(subparsers)
+g3_comms.g3_msgs.msg_cmds['hwreset'] = g3_cmd.HWResetCmd(subparsers)
 
 args = parser.parse_args()
 
