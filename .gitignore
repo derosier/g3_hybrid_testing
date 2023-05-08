@@ -9,6 +9,7 @@ tags
 *$py.class
 *.egg-info/
 *.egg
+.python-version
 
 .*.lint
 *.lprof
