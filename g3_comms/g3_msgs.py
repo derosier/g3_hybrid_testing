@@ -14,3 +14,5 @@ def decodeMsg(msg):
             decoder.pr_decode()
             decoder.call_hook()
             break
+    else: # no break
+        print(f"Message recived but unknown; Raw: {msg}")
