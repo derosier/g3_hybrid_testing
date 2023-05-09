@@ -21,6 +21,7 @@ parser.add_argument("-p", "--port", default=default_port, help=f"Serial port, de
 parser.add_argument("-V", "--verbosity", default="INFO", help="Logging verbosity. [CRITICAL, ERROR, WARNING, INFO, DEBUG]")
 parser.add_argument("-d", "--dump", action="store_true", help="Dump all messages recieved, don't return after sending message")
 parser.add_argument("-n", "--count", type=int, default=0, help="Number of times to repeat a command or to recieve messages")
+parser.add_argument("-t", "--timeout", type=int, default=5, help="Command wait for response timeout, default 5 seconds.")
 
 # Instantiate a global instance of every response we want to process on Rx
 resp_HWReset = g3_resp.HWResetResp()
@@ -67,7 +68,7 @@ def main():
         try:
             g3_comms.g3_msgs.msg_cmds[args.cmd].parse_args(args)
             g3_comms.g3_msgs.msg_cmds[args.cmd].setup_rx(g3_comms.g3_msgs.msg_decode_list)
-            g3_comms.g3_tx.send_and_wait(device, g3_comms.g3_msgs.msg_cmds[args.cmd])
+            g3_comms.g3_tx.send_and_wait(device, g3_comms.g3_msgs.msg_cmds[args.cmd], timeout=args.timeout)
         except KeyError:
             print(f"Unrecognized command {args.cmd}. Exiting.")
         if not args.dump:
