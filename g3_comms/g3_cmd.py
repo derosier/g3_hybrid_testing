@@ -1,6 +1,8 @@
 import logging
 import struct
 
+import g3_comms.g3_consts as G3C
+
 class G3Cmd():
     g3_id = 0xFE  # this is not used in the doc
     g3_name = 'UNKNOWN'
@@ -55,7 +57,7 @@ class G3Cmd():
 
 # Below commands are defined in the Datasheet AN5603 from ST.
 
-# Datasheet pp 49
+# Datasheet pg 49
 class HWResetCmd(G3Cmd):
     g3_id = 0x00
     g3_name = 'HOSTIF-HWRESET'
@@ -68,7 +70,7 @@ class HWResetCmd(G3Cmd):
         logging.debug("HOSTIF-HWRESET.Requst has no data to encode")
         return b''
 
-# Datasheet pp 55
+# Datasheet pg 55
 class DBGToolCmd(G3Cmd):
     g3_id = 0x14
     g3_name = 'HOSTIF-DBGTOOL'
@@ -88,4 +90,46 @@ class DBGToolCmd(G3Cmd):
         raw = struct.pack("<B", self.fields['subcmd'])
         if self.fields['subcmd'] > self.HI_DBG_INFO:
             logging.debug(f"Unsupported DBGTOOL subcommand {self.fields['subcmd']}")
+        return raw
+
+# Datasheet pg 63
+class SWResetCmd(G3Cmd):
+    g3_id = 0x24
+    g3_name = 'G3LIB-SWRESET'
+    rx_msgs = ['G3LIB-SWRESET']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('swreset', help='Perform a software reset and change the PLC configuration')
+        parser.add_argument('--bandplan', default='FCC', choices=['FCC', 'C-A', 'C-B'], help='What PLC band to operate on. Default is FCC.')
+        parser.add_argument('--devicetype', default='device', choices=['device', 'dev', 'coordinator', 'coord'], help='Start as a "device" node (default) or network "coordinator".')
+        parser.add_argument('--mode', default='boot', choices=list(G3C.G3_MODE.keys()), help='What API mode to boot into')
+        return parser
+
+    def parse_args(self, args):
+        if args.bandplan == 'FCC':
+            self.fields['bandplan'] = 3
+        elif args.bandplan == 'C-A':
+            self.fields['bandplan'] = 0
+        elif args.bandplan == 'C-B':
+            self.fields['bandplan'] = 1
+        else:
+            logging.warning(f"Unknown bandplan {args.bandplan}, using 'FCC'")
+            self.fields['bandplan'] = 3
+
+        if args.devicetype in ('device', 'dev'):
+            self.fields['devicetype'] = 0
+        elif args.devicetype in ('coordinator', 'coord'):
+            self.fields['devicetype'] = 1
+        else:
+            logging.warning(f"Unknown devicetype {args.devicetype}, using 'device'")
+            self.fields['devicetype'] = 0
+
+        try:
+            self.fields['mode'] = G3C.G3_MODE[args.mode]
+        except KeyError:
+            logging.warning(f"Unknown platform mode {args.mode}, using 'boot'")
+            self.fields['mode'] = G3C.G3_MODE['boot']
+
+    def encode_cmd(self):
+        raw = struct.pack("<BBB", self.fields['bandplan'], self.fields['devicetype'], self.fields['mode'])
         return raw
