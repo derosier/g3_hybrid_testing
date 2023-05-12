@@ -133,3 +133,21 @@ class BootSrvStartResp(G3Resp):
 
     def pr_decode(self):
         print(f'Reply {self.g3_name}: {self.fields}')
+
+# Datasheet pg 89
+class BootGetPSKInd(G3Resp):
+    g3_id = 0xC4
+    g3_name = 'G3BOOT-SRV-GETPSK'
+
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from("<QB36s", msg['data'], 1)
+        self.raw_fields = raw_fields
+        self.fields['e_addr'] = raw_fields[0]
+        self.fields['idp_len'] = raw_fields[1]
+        if not 1 <= self.fields['idp_len'] <= 36:
+            logging.warning("IDP length out of range")
+        self.fields['idp'] = raw_fields[:self.fields['idp_len']]
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
