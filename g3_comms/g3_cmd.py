@@ -133,3 +133,32 @@ class SWResetCmd(G3Cmd):
     def encode_cmd(self):
         raw = struct.pack("<BBB", self.fields['bandplan'], self.fields['devicetype'], self.fields['mode'])
         return raw
+
+# Datasheet pg 87
+class BootSrvStartCmd(G3Cmd):
+    g3_id = 0xB0
+    g3_name = 'G3BOOT-SRV-START'
+    rx_msgs = ['G3BOOT-SRV-START']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('bootsrvstart', help='Start the BOOT server')
+        parser.add_argument('--addr', required=True, type=int, help='Short address, 16 bit')
+        parser.add_argument('--panid', required=True, type=int, help='PAN Id of the network to start; 16 bit')
+        parser.add_argument('--reqtype', default='normal', choices=['normal', 'fast'], help='Request type [0 normal, 1 fast restore]')
+        return parser
+
+    def parse_args(self, args):
+        if args.reqtype == 'normal':
+            self.fields['reqtype'] = 0
+        elif args.reqtype == 'fast':
+            self.fields['reqtype'] = 1
+        else:
+            logging.warning(f"Unknown boot srv start type {args.reqtype}, using 'normal'")
+            self.fields['reqtype'] = 0
+        # both addresses are 16 bit, just force the bottom bits and call it good.
+        self.fields['addr'] = args.addr & 0xffff
+        self.fields['panid'] = args.panid & 0xffff
+
+    def encode_cmd(self):
+        raw = struct.pack("<HHB", self.fields['addr'], self.fields['panid'], self.fields['reqtype'])
+        return raw

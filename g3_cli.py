@@ -27,14 +27,17 @@ parser.add_argument("-t", "--timeout", type=int, default=5, help="Command wait f
 resp_HWReset = g3_resp.HWResetResp()
 resp_DBGTool = g3_resp.DBGToolResp()
 resp_SWReset = g3_resp.SWResetResp()
+resp_BootSrvStart = g3_resp.BootSrvStartResp()
 g3_comms.g3_msgs.msg_decode_list.append(resp_HWReset)
 g3_comms.g3_msgs.msg_decode_list.append(resp_DBGTool)
 g3_comms.g3_msgs.msg_decode_list.append(resp_SWReset)
+g3_comms.g3_msgs.msg_decode_list.append(resp_BootSrvStart)
 
 # Instantiate a global instance of every command we might want to send
 g3_comms.g3_msgs.msg_cmds['dbgtool'] = g3_cmd.DBGToolCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['hwreset'] = g3_cmd.HWResetCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['swreset'] = g3_cmd.SWResetCmd(subparsers)
+g3_comms.g3_msgs.msg_cmds['bootsrvstart'] = g3_cmd.BootSrvStartCmd(subparsers)
 
 args = parser.parse_args()
 
