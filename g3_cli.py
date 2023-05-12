@@ -28,6 +28,7 @@ g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.DBGToolResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.SWResetResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootSrvStartResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootSrvJoinInd())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootGetPSKInd())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootSrvSetPSKResp())
 

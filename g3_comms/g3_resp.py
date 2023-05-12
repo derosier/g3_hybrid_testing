@@ -134,6 +134,21 @@ class BootSrvStartResp(G3Resp):
     def pr_decode(self):
         print(f'Reply {self.g3_name}: {self.fields}')
 
+# Datasheet pg 88
+class BootSrvJoinInd(G3Resp):
+    g3_id = 0xB7
+    g3_name = 'G3BOOT-SRV-JOIN'
+
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from("<QH", msg['data'], 1)
+        self.raw_fields = raw_fields
+        self.fields['e_addr'] = raw_fields[0]
+        self.fields['short_id'] = raw_fields[1]
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
 # Datasheet pg 89
 class BootGetPSKInd(G3Resp):
     g3_id = 0xC4
