@@ -162,3 +162,28 @@ class BootSrvStartCmd(G3Cmd):
     def encode_cmd(self):
         raw = struct.pack("<HHB", self.fields['addr'], self.fields['panid'], self.fields['reqtype'])
         return raw
+
+# Datasheet pg 89
+class BootSrvSetPSKCmd(G3Cmd):
+    g3_id = 0xC5
+    g3_name = 'G3BOOT-SRV-SETPSK'
+    rx_msgs = ['G3BOOT-SRV-SETPSK']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('bootsetpsk', help='Set the PSK for the boot server')
+        parser.add_argument('--addr', required=True, type=int, help='Short address, 16 bit')
+        parser.add_argument('--longaddr', required=True, type=int, help='Extended address, 64 bit')
+        parser.add_argument('--psk', required=True, help='PSK Up to 16 bytes')
+        return parser
+
+    def parse_args(self, args):
+        # extended addresses are 64 bit, just force the bottom bits and call it good.
+        self.fields['extd_addr'] = args.addr & 0xffffffffffffffff
+        # short addresses are 16 bit, just force the bottom bits and call it good.
+        self.fields['addr'] = args.addr & 0xffff
+        self.fields['psk'] = bytes(args.psk, 'utf-8')
+
+    def encode_cmd(self):
+        # PSK field is 16 bytes. Pack automatically truncates it or pads it with 0x00 if necessary
+        raw = struct.pack("<Q16sH", self.fields['extd_addr'], self.fields['psk'], self.fields['addr'])
+        return raw
