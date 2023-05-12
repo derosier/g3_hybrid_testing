@@ -2,6 +2,7 @@ import logging
 import struct
 
 import g3_comms.g3_consts as G3C
+import g3_comms.g3_structs as G3S
 
 class G3Resp():
     g3_id = 0xFE  # this is not used in the doc
@@ -148,6 +149,28 @@ class BootSrvJoinInd(G3Resp):
 
     def pr_decode(self):
         print(f'Reply {self.g3_name}: {self.fields}')
+
+# Datasheet pg 90
+class BootDevPANSortInd(G3Resp):
+    g3_id = 0xC1
+    g3_name = 'G3BOOT-DEV-PANSORT.I'
+
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from("<B", msg['data'], 1)
+        self.raw_fields = raw_fields
+        self.fields['pan_count'] = raw_fields[0]
+        offset = 2 # first byte was the error code, second the PAN count
+        self.fields['pan'] = []
+        for _ in range(0, self.fields['pan_count']):
+            raw_fields = G3S.unpack_PAN_descriptor(msg['data'][offset:])
+            self.raw_fields.append(raw_fields)
+            self.fields['pan'].append(raw_fields)
+            offset = offset + 8 # PAN descriptor is 8 bytes
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
 
 # Datasheet pg 89
 class BootGetPSKInd(G3Resp):
