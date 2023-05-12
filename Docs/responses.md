@@ -80,13 +80,10 @@ Finally, in `g3_cli.py` you need to instantiate an object of the new class:
 
 ```
 # Instantiate a global instance of every response we want to process on Rx
-resp_HWReset = g3_resp.HWResetResp()
-resp_DBGTool = g3_resp.DBGToolResp()
-resp_NewResp = g3_resp.NewResp()
-g3_comms.g3_msgs.msg_decode_list.append(resp_HWReset)
-g3_comms.g3_msgs.msg_decode_list.append(resp_DBGTool)
-g3_comms.g3_msgs.msg_decode_list.append(resp_NewResp)
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.DBGToolResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.NewResp())
 ```
 
-We utilize the dict `g3_comms.g3_msgs.msg_decode_list` to store the objects for later use. The new
+We utilize the list `g3_comms.g3_msgs.msg_decode_list` to store the objects for later use. The new
 object must be appended to this list.

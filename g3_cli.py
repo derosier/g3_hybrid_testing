@@ -24,14 +24,10 @@ parser.add_argument("-n", "--count", type=int, default=0, help="Number of times 
 parser.add_argument("-t", "--timeout", type=int, default=5, help="Command wait for response timeout, default 5 seconds.")
 
 # Instantiate a global instance of every response we want to process on Rx
-resp_HWReset = g3_resp.HWResetResp()
-resp_DBGTool = g3_resp.DBGToolResp()
-resp_SWReset = g3_resp.SWResetResp()
-resp_BootSrvStart = g3_resp.BootSrvStartResp()
-g3_comms.g3_msgs.msg_decode_list.append(resp_HWReset)
-g3_comms.g3_msgs.msg_decode_list.append(resp_DBGTool)
-g3_comms.g3_msgs.msg_decode_list.append(resp_SWReset)
-g3_comms.g3_msgs.msg_decode_list.append(resp_BootSrvStart)
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.DBGToolResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.SWResetResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootSrvStartResp())
 
 # Instantiate a global instance of every command we might want to send
 g3_comms.g3_msgs.msg_cmds['dbgtool'] = g3_cmd.DBGToolCmd(subparsers)
