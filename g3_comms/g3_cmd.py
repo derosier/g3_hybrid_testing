@@ -163,6 +163,30 @@ class BootSrvStartCmd(G3Cmd):
         raw = struct.pack("<HHB", self.fields['addr'], self.fields['panid'], self.fields['reqtype'])
         return raw
 
+# Datasheet pg 90
+class BootDevStartCmd(G3Cmd):
+    g3_id = 0xB8
+    g3_name = 'G3BOOT-DEV-START'
+    rx_msgs = ['G3BOOT-DEV-START']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('bootdevstart', help='Start the BOOT device mode')
+        parser.add_argument('--reqtype', default='normal', choices=['normal', 'fast'], help='Request type [0 normal, 1 fast restore]')
+        return parser
+
+    def parse_args(self, args):
+        if args.reqtype == 'normal':
+            self.fields['reqtype'] = 0
+        elif args.reqtype == 'fast':
+            self.fields['reqtype'] = 1
+        else:
+            logging.warning(f"Unknown boot srv start type {args.reqtype}, using 'normal'")
+            self.fields['reqtype'] = 0
+
+    def encode_cmd(self):
+        raw = struct.pack("<B", self.fields['reqtype'])
+        return raw
+
 # Datasheet pg 89
 class BootSrvSetPSKCmd(G3Cmd):
     g3_id = 0xC5
