@@ -11,7 +11,7 @@ class G3Resp():
         self.callback = None
         self.cb_context = None
         self.raw_msg = b''
-        self.raw_fields = b''
+        self.raw_fields = []
         self.fields = {}
 
     def decode(self, msg):
