@@ -20,9 +20,10 @@ subparsers = parser.add_subparsers(dest='cmd')
 parser.add_argument("-p", "--port", default=default_port, help=f"Serial port, default {default_port}")
 parser.add_argument("-V", "--verbosity", default="INFO", help="Logging verbosity. [CRITICAL, ERROR, WARNING, INFO, DEBUG]")
 parser.add_argument("-d", "--dump", action="store_true", help="Dump all messages recieved, don't return after sending message")
-parser.add_argument("-n", "--count", type=int, default=0, help="Number of times to repeat a command or to recieve messages")
+parser.add_argument("-c", "--count", type=int, default=0, help="Number of times to repeat a command or to recieve messages")
 parser.add_argument("-t", "--timeout", type=int, default=5, help="Command wait for response timeout, default 5 seconds.")
 parser.add_argument("-i", "--interactive", action="store_true", help="Do an interactive cli session.")
+parser.add_argument("-n", "--dryrun", action="store_true", help="Process but don't send messages.")
 
 # Instantiate a global instance of every response we want to process on Rx
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
@@ -82,6 +83,8 @@ def main():
         parser.exit_on_error = False
         argparse.ArgumentParser.exit = interactive_parser_error
 
+    dryrun = args.dryrun # lock this in
+
     rx_protocol = g3_comms.g3_rx.G3Rx(device)
     rx_thread = threading.Thread(target=rx_protocol.run)
     rx_thread.start()
@@ -93,9 +96,17 @@ def main():
             if args.dump and not args.interactive:
                 print("--dump enabled, enter ^C to exit")
             try:
-                g3_comms.g3_msgs.msg_cmds[args.cmd].parse_args(args)
-                g3_comms.g3_msgs.msg_cmds[args.cmd].setup_rx(g3_comms.g3_msgs.msg_decode_list)
-                g3_comms.g3_tx.send_and_wait(device, g3_comms.g3_msgs.msg_cmds[args.cmd], timeout=args.timeout)
+                try:
+                    g3_comms.g3_msgs.msg_cmds[args.cmd].parse_args(args)
+                except ValueError:
+                    print("Unable to convert data input")
+                else:
+                    g3_comms.g3_msgs.msg_cmds[args.cmd].setup_rx(g3_comms.g3_msgs.msg_decode_list)
+                    if dryrun:
+                        msg = g3_comms.g3_tx.form_msg(g3_comms.g3_msgs.msg_cmds[args.cmd])
+                        print(f"Dry run, message encoded: {msg}")
+                    else:
+                        g3_comms.g3_tx.send_and_wait(device, g3_comms.g3_msgs.msg_cmds[args.cmd], timeout=args.timeout)
             except KeyError:
                 print(f"Unrecognized command {args.cmd}. Exiting.")
             if not args.dump:
