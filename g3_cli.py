@@ -28,6 +28,8 @@ parser.add_argument("-n", "--dryrun", action="store_true", help="Process but don
 # Instantiate a global instance of every response we want to process on Rx
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.DBGToolResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.G3GetResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.G3SetResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.SWResetResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootSrvStartResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootSrvJoinInd())
@@ -38,6 +40,8 @@ g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootSrvSetPSKResp())
 
 # Instantiate a global instance of every command we might want to send
 g3_comms.g3_msgs.msg_cmds['dbgtool'] = g3_cmd.DBGToolCmd(subparsers)
+g3_comms.g3_msgs.msg_cmds['get'] = g3_cmd.G3GetCmd(subparsers)
+g3_comms.g3_msgs.msg_cmds['set'] = g3_cmd.G3SetCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['hwreset'] = g3_cmd.HWResetCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['swreset'] = g3_cmd.SWResetCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['bootsrvstart'] = g3_cmd.BootSrvStartCmd(subparsers)

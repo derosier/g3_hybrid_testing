@@ -80,6 +80,50 @@ class DBGToolResp(G3Resp):
     def pr_decode(self):
         print(f'Reply {self.g3_name}: {self.fields}')
 
+# Datasheet pg 62
+class G3GetResp(G3Resp):
+    g3_id = 0x21
+    g3_name = 'G3LIB-GET'
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from("<BIHH", msg['data'], 1)
+        self.raw_fields = list(raw_fields)
+        try:
+            self.fields['status'] = G3C.G3_RESULTS[raw_fields[0]]
+        except KeyError:
+            logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
+        self.fields['id'] = raw_fields[1]
+        self.fields['index'] = raw_fields[2]
+        self.fields['length'] = raw_fields[3]
+        if self.fields['length'] > 0:
+            if self.fields['length'] in [*G3C.G3LIB_PIB_VALUE_FORMAT]:
+                raw_data = struct.unpack_from(G3C.G3LIB_PIB_VALUE_FORMAT[self.fields['length']], msg['data'], 10)
+            else:
+                raw_data = struct.unpack_from(f"<{self.fields['length']}s", msg['data'], 10)
+            self.raw_fields.append(raw_data[0])
+            self.fields['data'] = raw_data[0]
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
+# Datasheet pg 63
+class G3SetResp(G3Resp):
+    g3_id = 0x23
+    g3_name = 'G3LIB-SET'
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from("<BIH", msg['data'], 1)
+        self.raw_fields = raw_fields
+        try:
+            self.fields['status'] = G3C.G3_RESULTS[raw_fields[0]]
+        except KeyError:
+            logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
+        self.fields['id'] = raw_fields[1]
+        self.fields['index'] = raw_fields[2]
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
 # Datasheet pg 56
 class SWResetResp(G3Resp):
     g3_id = 0x25

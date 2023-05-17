@@ -165,3 +165,9 @@ G3_RESULTS = {
     0xFC: 'G3_SCAN_IN_PROGRESS',
     0xFD: 'G3_SUPERFRAME_OVERLAP'
 }
+
+G3LIB_PIB_VALUE_FORMAT = {
+    1: "<B",
+    2: "<H",
+    4: "<I",
+}

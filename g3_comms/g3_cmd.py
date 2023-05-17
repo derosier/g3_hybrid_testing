@@ -92,6 +92,53 @@ class DBGToolCmd(G3Cmd):
             logging.debug(f"Unsupported DBGTOOL subcommand {self.fields['subcmd']}")
         return raw
 
+# Datasheet pg 62
+class G3GetCmd(G3Cmd):
+    g3_id = 0x20
+    g3_name = 'G3LIB-GET'
+    rx_msgs = ['G3LIB-GET']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('get', help='Get attribute from G3Lib PIB')
+        parser.add_argument('--id', type=lambda x: int(x,0), required=True, help='PIB attribute ID')
+        parser.add_argument('--index', type=lambda x: int(x,0), default=0, help='Entry index if attribute is a table.')
+        return parser
+
+    def parse_args(self, args):
+        self.fields['id'] = args.id
+        self.fields['index'] = args.index
+
+    def encode_cmd(self):
+        raw = struct.pack("<IH", self.fields['id'], self.fields['index'])
+        return raw
+
+# Datasheet pg 62
+class G3SetCmd(G3Cmd):
+    g3_id = 0x22
+    g3_name = 'G3LIB-SET'
+    rx_msgs = ['G3LIB-SET']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('set', help='Set attribute in G3Lib PIB')
+        parser.add_argument('--id', type=lambda x: int(x,0), required=True, help='PIB attribute ID')
+        parser.add_argument('--index', type=lambda x: int(x,0), default=0, help='Entry index if attribute is a table.')
+        parser.add_argument('data', help="Data as string or hex with '0x' in little endian byte order")
+        return parser
+
+    def parse_args(self, args):
+        self.fields['id'] = args.id
+        self.fields['index'] = args.index
+        if args.data[:2] == '0x':
+            self.fields['data'] = bytes.fromhex(args.data[2:])
+        else:
+            self.fields['data'] = bytes(args.data, 'utf-8')
+        print(self.fields)
+
+    def encode_cmd(self):
+        length = len(self.fields['data'])
+        raw = struct.pack(f"<IHH{length}s", self.fields['id'], self.fields['index'], length, self.fields['data'])
+        return raw
+
 # Datasheet pg 63
 class SWResetCmd(G3Cmd):
     g3_id = 0x24
