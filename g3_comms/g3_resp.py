@@ -388,7 +388,7 @@ class BootDevPANSortInd(G3Resp):
     def decode(self, msg):
         super().decode(msg)
         raw_fields = struct.unpack_from("<B", msg['data'], 1)
-        self.raw_fields = raw_fields
+        self.raw_fields = list(raw_fields)
         self.fields['pan_count'] = raw_fields[0]
         offset = 2 # first byte was the error code, second the PAN count
         self.fields['pan'] = []

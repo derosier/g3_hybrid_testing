@@ -60,6 +60,7 @@ class G3Rx():
             data_len = len(msg['data'])
             if data_len < msg['size']:
                 logging.error(f"Short data. {data_len} of msg['size']")
+                return None
 
             if msg['sec_mode'] > 0:
                 check_len = G3_TAG_LEN + G3_CRC_LEN
@@ -68,6 +69,7 @@ class G3Rx():
             check = self.device.read(check_len)
             if len(check) < check_len:
                 logging.error("Invalid check length")
+                return None
             if msg['sec_mode'] > 0:
                 up_check = struct.unpack("<QH", check)
                 msg['sec_tag'] = up_check[0]
@@ -83,6 +85,8 @@ class G3Rx():
             computed_crc = crc.bit_by_bit_fast(syncro + header + msg['data'] + sec_tag)
             logging.debug(f"CRC computed {computed_crc:04x}, CRC Rx {msg['crc']:04x}")
             # TODO: check the CRC
+            if computed_crc != msg['crc']:
+                return None
 
             return msg
         else:
