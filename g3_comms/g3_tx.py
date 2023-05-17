@@ -37,7 +37,7 @@ def send(device, cmd):
     msg = form_msg(cmd)
     logging.debug(f"{msg}")
     byte_count = device.write(msg)
-    logging.debug(f"Wrote {byte_count} to port")
+    logging.debug(f"Wrote {byte_count} bytes to port")
     if byte_count != len(msg):
         logging.error("Error when sending command")
 

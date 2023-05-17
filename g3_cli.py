@@ -19,17 +19,28 @@ parser = argparse.ArgumentParser()
 subparsers = parser.add_subparsers(dest='cmd')
 parser.add_argument("-p", "--port", default=default_port, help=f"Serial port, default {default_port}")
 parser.add_argument("-V", "--verbosity", default="INFO", help="Logging verbosity. [CRITICAL, ERROR, WARNING, INFO, DEBUG]")
-parser.add_argument("-d", "--dump", action="store_true", help="Dump all messages recieved, sniffer mode")
+parser.add_argument("-d", "--dump", action="store_true", help="Dump all messages recieved, don't return after sending message")
 parser.add_argument("-n", "--count", type=int, default=0, help="Number of times to repeat a command or to recieve messages")
+parser.add_argument("-t", "--timeout", type=int, default=5, help="Command wait for response timeout, default 5 seconds.")
 
 # Instantiate a global instance of every response we want to process on Rx
-resp_HWReset = g3_resp.HWResetResp()
-resp_DBGTool = g3_resp.DBGToolResp()
-g3_comms.g3_msgs.msg_decode_list.append(resp_HWReset)
-g3_comms.g3_msgs.msg_decode_list.append(resp_DBGTool)
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.DBGToolResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.SWResetResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootSrvStartResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootSrvJoinInd())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootDevStartResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootDevPANSortInd())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootGetPSKInd())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootSrvSetPSKResp())
 
 # Instantiate a global instance of every command we might want to send
 g3_comms.g3_msgs.msg_cmds['dbgtool'] = g3_cmd.DBGToolCmd(subparsers)
+g3_comms.g3_msgs.msg_cmds['hwreset'] = g3_cmd.HWResetCmd(subparsers)
+g3_comms.g3_msgs.msg_cmds['swreset'] = g3_cmd.SWResetCmd(subparsers)
+g3_comms.g3_msgs.msg_cmds['bootsrvstart'] = g3_cmd.BootSrvStartCmd(subparsers)
+g3_comms.g3_msgs.msg_cmds['bootdevstart'] = g3_cmd.BootDevStartCmd(subparsers)
+g3_comms.g3_msgs.msg_cmds['bootsetpsk'] = g3_cmd.BootSrvSetPSKCmd(subparsers)
 
 args = parser.parse_args()
 
@@ -42,6 +53,7 @@ def shutdown_handler(signum, frame): # pylint: disable=unused-argument
 
 def main():
     logging.debug("*** Starting cli")
+    logging.debug(f"args: {args}")
 
     port = args.port
     logging.info(f'Using port {port}')
@@ -60,13 +72,18 @@ def main():
     # Now that we can Rx responses, now process and run commands
     logging.debug(f"Command entered {args.cmd}")
     if args.cmd:
+        if args.dump:
+            print("--dump enabled, enter ^C to exit")
         try:
             g3_comms.g3_msgs.msg_cmds[args.cmd].parse_args(args)
             g3_comms.g3_msgs.msg_cmds[args.cmd].setup_rx(g3_comms.g3_msgs.msg_decode_list)
-            g3_comms.g3_tx.send_and_wait(device, g3_comms.g3_msgs.msg_cmds[args.cmd])
+            g3_comms.g3_tx.send_and_wait(device, g3_comms.g3_msgs.msg_cmds[args.cmd], timeout=args.timeout)
         except KeyError:
             print(f"Unrecognized command {args.cmd}. Exiting.")
-        g3_comms.g3_rx.G3Rx.quit()
+        if not args.dump:
+            g3_comms.g3_rx.G3Rx.quit()
+    else:
+        print("No command, in dump mode, enter ^C to exit")
 
     # Cleanup and quit
     rx_thread.join()

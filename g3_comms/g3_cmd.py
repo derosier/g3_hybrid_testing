@@ -1,6 +1,8 @@
 import logging
 import struct
 
+import g3_comms.g3_consts as G3C
+
 class G3Cmd():
     g3_id = 0xFE  # this is not used in the doc
     g3_name = 'UNKNOWN'
@@ -55,7 +57,20 @@ class G3Cmd():
 
 # Below commands are defined in the Datasheet AN5603 from ST.
 
-# Datasheet pp 55
+# Datasheet pg 49
+class HWResetCmd(G3Cmd):
+    g3_id = 0x00
+    g3_name = 'HOSTIF-HWRESET'
+    rx_msgs = ['HOSTIF-HWRESET']
+
+    def _add_parser(self, subparsers):
+        return subparsers.add_parser('hwreset', help='Issue HWReset request')
+
+    def encode_cmd(self):
+        logging.debug("HOSTIF-HWRESET.Requst has no data to encode")
+        return b''
+
+# Datasheet pg 55
 class DBGToolCmd(G3Cmd):
     g3_id = 0x14
     g3_name = 'HOSTIF-DBGTOOL'
@@ -75,4 +90,124 @@ class DBGToolCmd(G3Cmd):
         raw = struct.pack("<B", self.fields['subcmd'])
         if self.fields['subcmd'] > self.HI_DBG_INFO:
             logging.debug(f"Unsupported DBGTOOL subcommand {self.fields['subcmd']}")
+        return raw
+
+# Datasheet pg 63
+class SWResetCmd(G3Cmd):
+    g3_id = 0x24
+    g3_name = 'G3LIB-SWRESET'
+    rx_msgs = ['G3LIB-SWRESET']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('swreset', help='Perform a software reset and change the PLC configuration')
+        parser.add_argument('--bandplan', default='FCC', choices=['FCC', 'C-A', 'C-B'], help='What PLC band to operate on. Default is FCC.')
+        parser.add_argument('--devicetype', default='device', choices=['device', 'dev', 'coordinator', 'coord'], help='Start as a "device" node (default) or network "coordinator".')
+        parser.add_argument('--mode', default='boot', choices=list(G3C.G3_MODE.keys()), help='What API mode to boot into')
+        return parser
+
+    def parse_args(self, args):
+        if args.bandplan == 'FCC':
+            self.fields['bandplan'] = 3
+        elif args.bandplan == 'C-A':
+            self.fields['bandplan'] = 0
+        elif args.bandplan == 'C-B':
+            self.fields['bandplan'] = 1
+        else:
+            logging.warning(f"Unknown bandplan {args.bandplan}, using 'FCC'")
+            self.fields['bandplan'] = 3
+
+        if args.devicetype in ('device', 'dev'):
+            self.fields['devicetype'] = 0
+        elif args.devicetype in ('coordinator', 'coord'):
+            self.fields['devicetype'] = 1
+        else:
+            logging.warning(f"Unknown devicetype {args.devicetype}, using 'device'")
+            self.fields['devicetype'] = 0
+
+        try:
+            self.fields['mode'] = G3C.G3_MODE[args.mode]
+        except KeyError:
+            logging.warning(f"Unknown platform mode {args.mode}, using 'boot'")
+            self.fields['mode'] = G3C.G3_MODE['boot']
+
+    def encode_cmd(self):
+        raw = struct.pack("<BBB", self.fields['bandplan'], self.fields['devicetype'], self.fields['mode'])
+        return raw
+
+# Datasheet pg 87
+class BootSrvStartCmd(G3Cmd):
+    g3_id = 0xB0
+    g3_name = 'G3BOOT-SRV-START'
+    rx_msgs = ['G3BOOT-SRV-START']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('bootsrvstart', help='Start the BOOT server')
+        parser.add_argument('--addr', required=True, type=int, help='Short address, 16 bit')
+        parser.add_argument('--panid', required=True, type=int, help='PAN Id of the network to start; 16 bit')
+        parser.add_argument('--reqtype', default='normal', choices=['normal', 'fast'], help='Request type [0 normal, 1 fast restore]')
+        return parser
+
+    def parse_args(self, args):
+        if args.reqtype == 'normal':
+            self.fields['reqtype'] = 0
+        elif args.reqtype == 'fast':
+            self.fields['reqtype'] = 1
+        else:
+            logging.warning(f"Unknown boot srv start type {args.reqtype}, using 'normal'")
+            self.fields['reqtype'] = 0
+        # both addresses are 16 bit, just force the bottom bits and call it good.
+        self.fields['addr'] = args.addr & 0xffff
+        self.fields['panid'] = args.panid & 0xffff
+
+    def encode_cmd(self):
+        raw = struct.pack("<HHB", self.fields['addr'], self.fields['panid'], self.fields['reqtype'])
+        return raw
+
+# Datasheet pg 90
+class BootDevStartCmd(G3Cmd):
+    g3_id = 0xB8
+    g3_name = 'G3BOOT-DEV-START'
+    rx_msgs = ['G3BOOT-DEV-START']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('bootdevstart', help='Start the BOOT device mode')
+        parser.add_argument('--reqtype', default='normal', choices=['normal', 'fast'], help='Request type [0 normal, 1 fast restore]')
+        return parser
+
+    def parse_args(self, args):
+        if args.reqtype == 'normal':
+            self.fields['reqtype'] = 0
+        elif args.reqtype == 'fast':
+            self.fields['reqtype'] = 1
+        else:
+            logging.warning(f"Unknown boot srv start type {args.reqtype}, using 'normal'")
+            self.fields['reqtype'] = 0
+
+    def encode_cmd(self):
+        raw = struct.pack("<B", self.fields['reqtype'])
+        return raw
+
+# Datasheet pg 89
+class BootSrvSetPSKCmd(G3Cmd):
+    g3_id = 0xC5
+    g3_name = 'G3BOOT-SRV-SETPSK'
+    rx_msgs = ['G3BOOT-SRV-SETPSK']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('bootsetpsk', help='Set the PSK for the boot server')
+        parser.add_argument('--addr', required=True, type=int, help='Short address, 16 bit')
+        parser.add_argument('--longaddr', required=True, type=int, help='Extended address, 64 bit')
+        parser.add_argument('--psk', required=True, help='PSK Up to 16 bytes')
+        return parser
+
+    def parse_args(self, args):
+        # extended addresses are 64 bit, just force the bottom bits and call it good.
+        self.fields['extd_addr'] = args.addr & 0xffffffffffffffff
+        # short addresses are 16 bit, just force the bottom bits and call it good.
+        self.fields['addr'] = args.addr & 0xffff
+        self.fields['psk'] = bytes(args.psk, 'utf-8')
+
+    def encode_cmd(self):
+        # PSK field is 16 bytes. Pack automatically truncates it or pads it with 0x00 if necessary
+        raw = struct.pack("<Q16sH", self.fields['extd_addr'], self.fields['psk'], self.fields['addr'])
         return raw
