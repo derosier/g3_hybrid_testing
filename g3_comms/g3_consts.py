@@ -171,3 +171,37 @@ G3LIB_PIB_VALUE_FORMAT = {
     2: "<H",
     4: "<I",
 }
+
+G3LIB_SNIFFER_FRAMETYPE = {
+    0x00: "PHY DATA",
+    0x01: "PHY ACK",
+    0x02: "MAC BEACON",
+    0x03: "MAC DATA",
+    0x04: "MAC CMD",
+    0x05: "PHY RF",
+    0x06: "MAC RF ACK",
+    0xFF: "UNKNOWN"
+}
+
+# Decode tables for G3PHY-DATA.Indication
+G3_PHY_MODTYPE = {
+    0: "Robust",
+    1: "xBPSK",
+    2: "xQPSK",
+    3: "x8PSK"
+}
+
+G3_PHY_MODSCHEME = {
+    0: "Differential",
+    1: "Coherent"
+}
+
+G3_PHY_DT = {
+    0x00: "SOF no response",
+    0x01: "SOF ACK expected"
+}
+
+G3_PHY_RSBLOCKS = {
+    0: "Two RS Blocks",
+    1: "One RS Block"
+}

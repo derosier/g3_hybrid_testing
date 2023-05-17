@@ -162,6 +162,173 @@ class SWResetResp(G3Resp):
     def pr_decode(self):
         print(f'Reply {self.g3_name}: {self.fields}')
 
+# Table 95. pg 69
+def decode_mac_beacon(msg, offset):
+    raw_fields = struct.unpack_from("<BHQBHQBBBH", msg, offset)
+    fields = {}
+    fields['src_addrmode'] = raw_fields[0]
+    fields['src_panid'] = raw_fields[1]
+    fields['src_addr'] = raw_fields[2]
+    fields['dst_addrmode'] = raw_fields[3]
+    fields['dst_panid'] = raw_fields[4]
+    fields['dst_addr'] = raw_fields[5]
+    fields['mediatype'] = raw_fields[6]
+    fields['lqi'] = raw_fields[7]
+    fields['bsn'] = raw_fields[8]
+    fields['rc_coord'] = raw_fields[9]
+    return fields
+
+# Table 96. pg 70
+def decode_mac_data(msg, offset):
+    fmt = "<BHQBHQBBBBBBH"
+    raw_fields = struct.unpack_from(fmt, msg, offset)
+    fields = {}
+    fields['src_addrmode'] = raw_fields[0]
+    fields['src_panid'] = raw_fields[1]
+    fields['src_addr'] = raw_fields[2]
+    fields['dst_addrmode'] = raw_fields[3]
+    fields['dst_panid'] = raw_fields[4]
+    fields['dst_addr'] = raw_fields[5]
+    fields['mediatype'] = raw_fields[6]
+    fields['lqi'] = raw_fields[7]
+    fields['dsn'] = raw_fields[8]
+    fields['sec_level'] = raw_fields[9]
+    fields['keyindex'] = raw_fields[10]
+    fields['qos'] = raw_fields[11]
+    fields['msdulen'] = raw_fields[12]
+    offset = offset + struct.calcsize(fmt)
+    fields['msdu'] = msg[offset:]
+    if len(fields['msdu']) != fields['msdulen']:
+        logging.error("msdu len mismatch")
+    return fields
+
+# Table 97. pg 70
+def decode_mac_cmd(msg, offset):
+    fmt = "<BHQBHQBBB"
+    raw_fields = struct.unpack_from(fmt, msg, offset)
+    fields = {}
+    fields['src_addrmode'] = raw_fields[0]
+    fields['src_panid'] = raw_fields[1]
+    fields['src_addr'] = raw_fields[2]
+    fields['dst_addrmode'] = raw_fields[3]
+    fields['dst_panid'] = raw_fields[4]
+    fields['dst_addr'] = raw_fields[5]
+    fields['mediatype'] = raw_fields[6]
+    fields['lqi'] = raw_fields[7]
+    fields['cmd_frame_id'] = raw_fields[8]
+    offset = offset + struct.calcsize(fmt)
+    fields['cmd_payload'] = msg[offset:]
+    return fields
+
+# Table 98. pg 71
+def decode_mac_rf_ack(msg, offset):
+    raw_fields = struct.unpack_from("<BHQBHQBB", msg, offset)
+    fields = {}
+    fields['src_addrmode'] = raw_fields[0]
+    fields['src_panid'] = raw_fields[1]
+    fields['src_addr'] = raw_fields[2]
+    fields['dst_addrmode'] = raw_fields[3]
+    fields['dst_panid'] = raw_fields[4]
+    fields['dst_addr'] = raw_fields[5]
+    fields['lqi'] = raw_fields[6]
+    fields['ack_value'] = raw_fields[7]
+    return fields
+
+# Table 101. pg 72
+def decode_phy_data(msg, offset):
+    fmt = "<72sBBB3sBBB72s72sH"
+    raw_fields = struct.unpack_from(fmt, msg, offset)
+    fields = {}
+    fields['snr_carriers'] = raw_fields[0]
+    fields['phase_diff'] = raw_fields[1]
+    try:
+        fields['mod_type'] = G3C.G3_PHY_MODTYPE[raw_fields[2]]
+    except KeyError:
+        logging.error(f"Unknown modulation type: {raw_fields[2]}")
+    try:
+        fields['mod_scheme'] = G3C.G3_PHY_MODSCHEME[raw_fields[3]]
+    except KeyError:
+        logging.error(f"Unknown modulation scheme: {raw_fields[3]}")
+    fields['tonemap'] = raw_fields[4]
+    try:
+        fields['dt'] = G3C.G3_PHY_DT[raw_fields[5]]
+    except KeyError:
+        logging.error(f"Unknown dt: {raw_fields[5]}")
+    try:
+        fields['rs_blocks'] = G3C.G3_PHY_RSBLOCKS[raw_fields[6]]
+    except KeyError:
+        logging.error(f"Unknown rs blocks: {raw_fields[6]}")
+    fields['lqi'] = raw_fields[7]
+    fields['noise_power'] = raw_fields[8]
+    fields['signal_power'] = raw_fields[9]
+    fields['len'] = raw_fields[10]
+    offset = offset + struct.calcsize(fmt)
+    fields['payload'] = msg[offset:]
+    return fields
+
+# Table 104. pg 73
+def decode_phy_ack(msg, offset):
+    fmt = "HBBH"
+    raw_fields = struct.unpack_from(fmt, msg, offset)
+    fields = {}
+    fields['fcs'] = raw_fields[0]
+    fields['dt_ssca'] = raw_fields[1]
+    fields['crc5_8'] = raw_fields[2]
+    fields['len'] = raw_fields[3]
+    offset = offset + struct.calcsize(fmt)
+    fields['payload'] = msg[offset:]
+    return fields
+
+# Table 107
+def decode_phy_rf(msg, offset):
+    fmt = "BBH"
+    raw_fields = struct.unpack_from(fmt, msg, offset)
+    fields = {}
+    fields['rssi'] = raw_fields[0]
+    fields['noise'] = raw_fields[1]
+    fields['len'] = raw_fields[2]
+    offset = offset + struct.calcsize(fmt)
+    fields['payload'] = msg[offset:]
+    return fields
+
+def decode_unknown(msg, offset):
+    fields = {}
+    fields['payload'] = msg[offset:]
+    logging.error(f"Invalid sniffer frame type; data: {fields['payload']}")
+    return fields
+
+G3LIB_SNIFFER_DECODER = {
+    0x00: decode_phy_data,
+    0x01: decode_phy_ack,
+    0x02: decode_mac_beacon,
+    0x03: decode_mac_data,
+    0x04: decode_mac_cmd,
+    0x05: decode_phy_rf,
+    0x06: decode_mac_rf_ack,
+    0xFF: decode_unknown
+}
+
+# Datasheet pg 62
+class G3SnifferInd(G3Resp):
+    g3_id = 0x2B
+    g3_name = 'G3LIB-SNIFFER'
+
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from("<BIH", msg['data'], 1)
+        self.raw_fields = list(raw_fields)
+        self.fields['timestamp'] = raw_fields[1]
+        self.fields['length'] = raw_fields[2]
+        try:
+            self.fields['frametype'] = G3C.G3LIB_SNIFFER_FRAMETYPE[raw_fields[0]]
+            self.fields['data'] = G3LIB_SNIFFER_DECODER[raw_fields[0]](msg['data'], 8)
+        except KeyError:
+            logging.error(f"Unknown sniffer frame type key on {self.g3_name}: {raw_fields[0]}")
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
+
 # Datasheet pg 87
 class BootSrvStartResp(G3Resp):
     g3_id = 0xB1
