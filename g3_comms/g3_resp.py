@@ -268,18 +268,15 @@ def decode_phy_data(msg, offset):
 
 # Table 104. pg 73
 def decode_phy_ack(msg, offset):
-    fmt = "HBBH"
+    fmt = "HBB"
     raw_fields = struct.unpack_from(fmt, msg, offset)
     fields = {}
     fields['fcs'] = raw_fields[0]
     fields['dt_ssca'] = raw_fields[1]
     fields['crc5_8'] = raw_fields[2]
-    fields['len'] = raw_fields[3]
-    offset = offset + struct.calcsize(fmt)
-    fields['payload'] = msg[offset:]
     return fields
 
-# Table 107
+# Table 107, pg 74
 def decode_phy_rf(msg, offset):
     fmt = "BBH"
     raw_fields = struct.unpack_from(fmt, msg, offset)
@@ -310,7 +307,7 @@ G3LIB_SNIFFER_DECODER = {
 
 # Datasheet pg 62
 class G3SnifferInd(G3Resp):
-    g3_id = 0x2B
+    g3_id = 0x2b
     g3_name = 'G3LIB-SNIFFER'
 
     def decode(self, msg):
@@ -328,6 +325,41 @@ class G3SnifferInd(G3Resp):
     def pr_decode(self):
         print(f'Reply {self.g3_name}: {self.fields}')
 
+# Datasheet pg 72
+class G3PhyDataInd(G3Resp):
+    g3_id = 0x42
+    g3_name = 'G3PHY-DATA'
+
+    def decode(self, msg):
+        super().decode(msg)
+        self.fields = decode_phy_data(msg['data'], 1)
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
+# Datasheet pg 73
+class G3PhyAckInd(G3Resp):
+    g3_id = 0x45
+    g3_name = 'G3PHY-ACK'
+
+    def decode(self, msg):
+        super().decode(msg)
+        self.fields = decode_phy_ack(msg['data'], 1)
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
+# Datasheet pg 74
+class G3PhyRfInd(G3Resp):
+    g3_id = 0x48
+    g3_name = 'G3PHY-RF'
+
+    def decode(self, msg):
+        super().decode(msg)
+        self.fields = decode_phy_rf(msg['data'], 1)
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 87
 class BootSrvStartResp(G3Resp):
