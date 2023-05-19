@@ -59,7 +59,7 @@ class G3Rx():
             msg['data'] = self.device.read(msg['size'])
             data_len = len(msg['data'])
             if data_len < msg['size']:
-                logging.error(f"Short data. {data_len} of msg['size']")
+                logging.error(f"Short data. {data_len} bytes Rx of {msg['size']} bytes")
                 return None
 
             if msg['sec_mode'] > 0:
