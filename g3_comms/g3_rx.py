@@ -48,7 +48,7 @@ class G3Rx():
             header = self.device.read(G3_HEADER_LEN)
             if len(header) != G3_HEADER_LEN:
                 logging.error(f"Invalid header: {header.hex(' ')}")
-                return msg
+                return None
 
             up_header = struct.unpack("<BHBI", header)
             msg['cmd'] = up_header[0]
