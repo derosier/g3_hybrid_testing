@@ -125,15 +125,22 @@ def main():
         if not args.interactive:
             break
 
-        # We're in interactive mode. So, print a prompt and get input.
-        try:
-            user_input = input('-> ')
-        except EOFError: # This is ^d
-            user_input = 'quit'
+        # We're in interactive mode. So, print a prompt and get input, loop until we get input.
+        # in other words, an `enter` key on nothing will reissue the prompt
+        while True:
+            try:
+                user_input = input('-> ')
+            except EOFError: # This is ^d
+                user_input = 'quit'
 
-        # Handle a couple of "commands" without adding them to our parser.
-        if len(user_input.strip()) == 0:
-            continue    # if the user hits enter, redo the last command
+            # Handle a couple of "commands" without adding them to our parser.
+            if len(user_input.strip()) == 0:
+                continue    # if the user hits enter, redo the last command
+            break
+
+        if user_input.strip() in ('.'):
+            continue    # if the user enters '.', redo the last command
+
         args.cmd = None # clear this out, because if we don't we'll repeat the last command on error or help
         if user_input.strip() in ('quit', 'end', 'exit'):
             g3_comms.g3_rx.G3Rx.quit()
