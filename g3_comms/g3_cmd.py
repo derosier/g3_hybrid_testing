@@ -2,6 +2,7 @@ import logging
 import struct
 
 import g3_comms.g3_consts as G3C
+import g3_comms.g3_msgs
 
 class G3Cmd():
     g3_id = 0xFE  # this is not used in the doc
@@ -257,4 +258,26 @@ class BootSrvSetPSKCmd(G3Cmd):
     def encode_cmd(self):
         # PSK field is 16 bytes. Pack automatically truncates it or pads it with 0x00 if necessary
         raw = struct.pack("<Q16sH", self.fields['extd_addr'], self.fields['psk'], self.fields['addr'])
+        return raw
+
+# Datasheet pg 93
+class ICMPEchoCmd(G3Cmd):
+    g3_id = 0xd7
+    g3_name = 'G3ICMP-ECHO'
+    rx_msgs = ['G3ICMP-ECHO']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('echo', help='Send a ping to remote --addr')
+        parser.add_argument('--addr', required=True, type=int, help='Short address')
+        parser.add_argument('--handle', required=True, type=int, help='ICMP Echo handle')
+        return parser
+
+    def parse_args(self, args):
+        # short addresses are 16 bit, just force the bottom bits and call it good.
+        self.fields['addr'] = args.addr & 0xffff
+        self.fields['handle'] = args.handle
+
+    def encode_cmd(self):
+        self.fields['ipv6addr'] = g3_comms.g3_msgs.hi_ipv6_set_ipaddr(self.fields['addr'])
+        raw = struct.pack("<16sBH", self.fields['ipv6addr'], self.fields['handle'], 0)
         return raw

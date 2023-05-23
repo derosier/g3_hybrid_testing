@@ -41,6 +41,9 @@ g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootDevStartResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootDevPANSortInd())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootGetPSKInd())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.BootSrvSetPSKResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.G3EchoResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.G3EchoRepInd())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.G3EchoReqInd())
 
 # Instantiate a global instance of every command we might want to send
 g3_comms.g3_msgs.msg_cmds['dbgtool'] = g3_cmd.DBGToolCmd(subparsers)
@@ -51,6 +54,7 @@ g3_comms.g3_msgs.msg_cmds['swreset'] = g3_cmd.SWResetCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['bootsrvstart'] = g3_cmd.BootSrvStartCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['bootdevstart'] = g3_cmd.BootDevStartCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['bootsetpsk'] = g3_cmd.BootSrvSetPSKCmd(subparsers)
+g3_comms.g3_msgs.msg_cmds['echo'] = g3_cmd.ICMPEchoCmd(subparsers)
 
 args = parser.parse_args()
 

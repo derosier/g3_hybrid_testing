@@ -468,3 +468,93 @@ class BootSrvSetPSKResp(G3Resp):
 
     def pr_decode(self):
         print(f'Reply {self.g3_name}: {self.fields}')
+
+# Datasheet pg 93
+class G3EchoResp(G3Resp):
+    g3_id = 0xd8
+    g3_name = 'G3ICMP-ECHO'
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from("<BBB", msg['data'], 1)
+        self.raw_fields = raw_fields
+        try:
+            self.fields['status'] = G3C.G3_RESULTS[raw_fields[0]]
+        except KeyError:
+            logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
+        self.fields['handle'] = raw_fields[1]
+        self.fields['nexthop_medium'] = raw_fields[2]
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
+# Datasheet pg 93
+def decode_echo(msg, offset):
+    fmt = "<BH"
+    raw_fields = struct.unpack_from(fmt, msg, offset)
+    fields = {}
+    offset = offset + struct.calcsize(fmt)
+    fields['prevhop_addrmode'] = raw_fields[0]
+    fields['prevhop_pan'] = raw_fields[1]
+    if fields['prevhop_addrmode'] == 0:
+        fmt = "<"
+    elif fields['prevhop_addrmode'] == 2:
+        fmt = "<H"
+    elif fields['prevhop_addrmode'] == 3:
+        fmt = "<Q"
+    else:
+        logging.error(f"Unknown prevhop_addrmode {fields['prevhop_addrmode']}")
+        return fields
+    fmt = fmt + "BBBB3sB"
+    raw_fields = struct.unpack_from(fmt, msg, offset)
+    offset = offset + struct.calcsize(fmt)
+    o = 0
+    if fields['prevhop_addrmode'] != 0:
+        o = 1
+        fields['prevhop_addr'] = raw_fields[0]
+    fields['lqi'] = raw_fields[0+o]
+    fields['phasediff'] = raw_fields[1+o]
+    try:
+        fields['modtype'] = G3C.G3_PHY_MODTYPE[raw_fields[2+o]]
+    except KeyError:
+        logging.error(f"Unknown modulation type: {raw_fields[2]}")
+    try:
+        fields['modscheme'] = G3C.G3_PHY_MODSCHEME[raw_fields[3+o]]
+    except KeyError:
+        logging.error(f"Unknown modulation scheme: {raw_fields[3]}")
+    fields['tonemap'] = raw_fields[4+o]
+    fields['bc0num'] = int(raw_fields[5+o])
+    bc0num = fields['bc0num']
+    if bc0num > 6:
+        logging.error(f"bc0num is over maximum: {bc0num}")
+        return fields
+    fmt = f"<{bc0num}BB16sH"
+    raw_fields = struct.unpack_from(fmt, msg, offset)
+    offset = offset + struct.calcsize(fmt)
+    fields['bc0'] = []
+    for i in range(0, bc0num):
+        fields['bc0'].append(raw_fields[i])
+    fields['prevhop_media'] = raw_fields[0+bc0num]
+    fields['src_addr'] = raw_fields[1+bc0num]
+    fields['data_len'] = raw_fields[2+bc0num]
+    fields['data'] = msg[offset:]
+    return fields
+
+class G3EchoRepInd(G3Resp):
+    g3_id = 0xd9
+    g3_name = 'G3ICMP-ECHOREP'
+    def decode(self, msg):
+        super().decode(msg)
+        self.fields = decode_echo(msg['data'], 1)
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
+class G3EchoReqInd(G3Resp):
+    g3_id = 0xdf
+    g3_name = 'G3ICMP-ECHOREQ'
+    def decode(self, msg):
+        super().decode(msg)
+        self.fields = decode_echo(msg['data'], 1)
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
