@@ -14,10 +14,12 @@ from g3_comms import g3_resp
 from g3_comms import g3_cmd
 
 default_port="/dev/ttyACM0"
+default_baudrate=115200
 
 parser = argparse.ArgumentParser()
 subparsers = parser.add_subparsers(dest='cmd')
 parser.add_argument("-p", "--port", default=default_port, help=f"Serial port, default {default_port}")
+parser.add_argument("-b", "--baud", default=default_baudrate, help=f"Serial port baud rate, default {default_baudrate}. GUI sniffer uses 460800 baud.")
 parser.add_argument("-V", "--verbosity", default="INFO", help="Logging verbosity. [CRITICAL, ERROR, WARNING, INFO, DEBUG]")
 parser.add_argument("-d", "--dump", action="store_true", help="Dump all messages recieved, don't return after sending message")
 parser.add_argument("-c", "--count", type=int, default=0, help="Number of times to repeat a command or to recieve messages")
@@ -87,13 +89,14 @@ def main():
     logging.debug(f"args: {args}")
 
     port = args.port
-    logging.info(f'Using port {port}')
+    baudrate = args.baud
+    logging.info(f'Using port {port} at baud {baudrate}')
 
     signal.signal(signal.SIGINT, shutdown_handler)
 
     logging.debug(f"Registered messages for decode: {g3_comms.g3_msgs.msg_decode_list}")
     logging.debug(f"Registered commands to tx: {g3_comms.g3_msgs.msg_cmds.keys()}")
-    device = serial.Serial(port, baudrate=115200, timeout=0)
+    device = serial.Serial(port, baudrate=baudrate, timeout=0)
     logging.info(f"Opened serial port {device.name}")
 
     if args.interactive:
