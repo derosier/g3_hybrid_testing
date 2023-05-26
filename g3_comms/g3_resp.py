@@ -326,9 +326,30 @@ class G3SnifferInd(G3Resp):
         print(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 72
+class G3PhyData(G3Resp):
+    g3_id = 0x41
+    g3_name = 'G3PHY-DATA'
+
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from("<BBBBB", msg['data'], 1)
+        self.raw_fields = raw_fields
+        try:
+            self.fields['status'] = G3C.G3_RESULTS[raw_fields[0]]
+        except KeyError:
+            logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
+        self.fields['cs_threshold_ev'] = raw_fields[1]
+        self.fields['tx_pwr_begin'] = raw_fields[2]
+        self.fields['tx_pwr_end'] = raw_fields[3]
+        self.fields['thermal_warning'] = raw_fields[4]
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
+# Datasheet pg 72
 class G3PhyDataInd(G3Resp):
     g3_id = 0x42
-    g3_name = 'G3PHY-DATA'
+    g3_name = 'G3PHY-DATA.Ind'
 
     def decode(self, msg):
         super().decode(msg)
@@ -338,9 +359,26 @@ class G3PhyDataInd(G3Resp):
         print(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 73
+class G3PhyAck(G3Resp):
+    g3_id = 0x44
+    g3_name = 'G3PHY-ACK'
+
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from("<B", msg['data'], 1)
+        self.raw_fields = raw_fields
+        try:
+            self.fields['status'] = G3C.G3_RESULTS[raw_fields[0]]
+        except KeyError:
+            logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
+# Datasheet pg 73
 class G3PhyAckInd(G3Resp):
     g3_id = 0x45
-    g3_name = 'G3PHY-ACK'
+    g3_name = 'G3PHY-ACK.Ind'
 
     def decode(self, msg):
         super().decode(msg)
@@ -350,9 +388,26 @@ class G3PhyAckInd(G3Resp):
         print(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 74
+class G3PhyRf(G3Resp):
+    g3_id = 0x47
+    g3_name = 'G3PHY-RF'
+
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from("<B", msg['data'], 1)
+        self.raw_fields = raw_fields
+        try:
+            self.fields['status'] = G3C.G3_RESULTS[raw_fields[0]]
+        except KeyError:
+            logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
+# Datasheet pg 74
 class G3PhyRfInd(G3Resp):
     g3_id = 0x48
-    g3_name = 'G3PHY-RF'
+    g3_name = 'G3PHY-RF.Ind'
 
     def decode(self, msg):
         super().decode(msg)
@@ -432,7 +487,6 @@ class BootDevPANSortInd(G3Resp):
 
     def pr_decode(self):
         print(f'Reply {self.g3_name}: {self.fields}')
-
 
 # Datasheet pg 89
 class BootGetPSKInd(G3Resp):

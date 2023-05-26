@@ -17,6 +17,13 @@ def decodeMsg(msg):
     else: # no break
         print(f"Message recived but unknown; Raw: {msg}")
 
+def parse_data(argdata):
+    if argdata[:2] == '0x':
+        data = bytes.fromhex(argdata[2:])
+    else:
+        data = bytes(argdata, 'utf-8')
+    return data
+
 def hi_ipv6_set_ipaddr(short_addr, pan_id=30749):
     logging.debug(f"encoding ipv6 address from short {short_addr} on pan {pan_id}")
     ipv6 = bytes.fromhex("FE 80 00 00 00 00 00 00")

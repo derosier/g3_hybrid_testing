@@ -1,5 +1,6 @@
 import logging
 import struct
+import binascii
 
 import g3_comms.g3_consts as G3C
 import g3_comms.g3_msgs
@@ -129,10 +130,7 @@ class G3SetCmd(G3Cmd):
     def parse_args(self, args):
         self.fields['id'] = args.id
         self.fields['index'] = args.index
-        if args.data[:2] == '0x':
-            self.fields['data'] = bytes.fromhex(args.data[2:])
-        else:
-            self.fields['data'] = bytes(args.data, 'utf-8')
+        self.fields['data'] = g3_comms.g3_msgs.parse_data(args.data)
         print(self.fields)
 
     def encode_cmd(self):
@@ -180,6 +178,109 @@ class SWResetCmd(G3Cmd):
 
     def encode_cmd(self):
         raw = struct.pack("<BBB", self.fields['bandplan'], self.fields['devicetype'], self.fields['mode'])
+        return raw
+
+# Datasheet pg 71
+class PhyDataCmd(G3Cmd):
+    g3_id = 0x40
+    g3_name = 'G3PHY-DATA'
+    rx_msgs = ['G3PHY-DATA']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('phydata', help='Send data over the phy')
+        parser.add_argument('--txpwr', default=16, type=int, help='Set Tx power. 0-32. Default 16.')
+        parser.add_argument('--modtype', default='Robust', choices=list(G3C.G3_PHY_MODTYPE_R.keys()), help='Modulation type')
+        parser.add_argument('--modscheme', default='Differential', choices=list(G3C.G3_PHY_MODSCHEME_R.keys()), help='Modulation scheme')
+        parser.add_argument('--tonemap', default='ffffff', help='Tonemap, six bare hex digits eg "ffffff" (default)')
+        parser.add_argument('data', help="Data as string or hex with '0x' in little endian byte order")
+        return parser
+
+    def parse_args(self, args):
+        if args.txpwr < 0:
+            logging.warning("txpwr is too low, pinning to 0")
+        elif args.txpwr > 0x20:
+            logging.warning("txpwr is too high, clampping to 32")
+        self.fields['txpwr'] = args.txpwr
+        self.fields['modtype'] = G3C.G3_PHY_MODTYPE_R[args.modtype]
+        self.fields['modscheme'] = G3C.G3_PHY_MODSCHEME_R[args.modscheme]
+        if len(args.tonemap) != 6:
+            logging.warning("Invlid tonemap, using ffffff")
+            args.tonemap = 'ffffff'
+        try:
+            self.fields['tonemap'] = binascii.unhexlify(args.tonemap)
+        except binascii.Error:
+            logging.warning("Invlid tonemap, using ffffff")
+            args.tonemap = 'ffffff'
+            self.fields['tonemap'] = binascii.unhexlify(args.tonemap)
+        self.fields['dt'] = 1
+        self.fields['twosrsblock'] = 0
+        self.fields['data'] = g3_comms.g3_msgs.parse_data(args.data)
+        print(self.fields)
+
+    def encode_cmd(self):
+        length = len(self.fields['data'])
+        preemphasis = binascii.unhexlify('00'*24) # per pg 71 this is all zeros
+        raw = struct.pack(f"<BBB24s3sBBH{length}s", self.fields['txpwr'], self.fields['modtype'],
+                                                    self.fields['modscheme'], preemphasis,
+                                                    self.fields['tonemap'], self.fields['dt'],
+                                                    self.fields['tworsblock'], length,
+                                                    self.fields['data'])
+        return raw
+
+# Datasheet pg 73
+class PhyAckCmd(G3Cmd):
+    g3_id = 0x43
+    g3_name = 'G3PHY-ACK'
+    rx_msgs = ['G3PHY-ACK']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('phyack', help='Send a phy ack')
+        parser.add_argument('--fcs', default='0000', help='FCS')
+        parser.add_argument('--type', default='ack', choices=['ack', 'nack'], help='ack or nack the last packet')
+        parser.add_argument('--avoid', default=0, type=int, help='Collision avoidance (0:no, 1:yes)')
+        return parser
+
+    def parse_args(self, args):
+        if len(args.fcs) != 4:
+            logging.warning("Invalid FCS, using 000000")
+            args.fcs = '0000'
+        try:
+            self.fields['fcs'] = binascii.unhexlify(args.fcs)
+        except binascii.Error:
+            logging.warning("Invalid FCS, using 000000")
+            self.fields['fcs'] = b'\x00\x00'
+        if args.type == 'ack':
+            ack = 0x02 # ack
+        else:
+            ack = 0x03 # nack
+        avoid = 0x00
+        if args.avoid == 1:
+            avoid = 0x04
+        self.fields['dt_ssca'] = 0x00 | ack | avoid
+        self.fields['crc5_8'] = 0x00 # don't really know what to calc over, so just holding space right now
+
+    def encode_cmd(self):
+        raw = struct.pack("<HBB", self.fields['fcs'], self.fields['dt_ssca'], self.fields['crc5_8'])
+        return raw
+
+# Datasheet pg 74
+class PhyRfCmd(G3Cmd):
+    g3_id = 0x46
+    g3_name = 'G3PHY-RF'
+    rx_msgs = ['G3PHY-RF']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('phyrf', help='Send data over the RF')
+        parser.add_argument('data', help="Data as string or hex with '0x' in little endian byte order")
+        return parser
+
+    def parse_args(self, args):
+        self.fields['data'] = g3_comms.g3_msgs.parse_data(args.data)
+        print(self.fields)
+
+    def encode_cmd(self):
+        length = len(self.fields['data'])
+        raw = struct.pack(f"<H{length}s", length, self.fields['data'])
         return raw
 
 # Datasheet pg 87

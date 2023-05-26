@@ -191,10 +191,16 @@ G3_PHY_MODTYPE = {
     3: "x8PSK"
 }
 
+# reverse lookup for G3_PHY_MODTYPE
+G3_PHY_MODTYPE_R = {y: x for x, y in G3_PHY_MODTYPE.items()}
+
 G3_PHY_MODSCHEME = {
     0: "Differential",
     1: "Coherent"
 }
+
+# reverse lookup for G3_PHY_MODSCHEME
+G3_PHY_MODSCHEME_R = {y: x for x, y in G3_PHY_MODSCHEME.items()}
 
 G3_PHY_DT = {
     0x00: "SOF no response",
