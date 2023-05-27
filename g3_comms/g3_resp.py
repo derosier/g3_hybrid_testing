@@ -523,6 +523,128 @@ class BootSrvSetPSKResp(G3Resp):
     def pr_decode(self):
         print(f'Reply {self.g3_name}: {self.fields}')
 
+# Datasheet pg 91
+class UDPData(G3Resp):
+    g3_id = 0xd1
+    g3_name = 'G3UDP-DATA'
+
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from("<BBB", msg['data'], 1)
+        self.raw_fields = raw_fields
+        try:
+            self.fields['status'] = G3C.G3_RESULTS[raw_fields[0]]
+        except KeyError:
+            logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
+        self.fields['handle'] = raw_fields[1]
+        self.fields['nexthop_medium'] = raw_fields[2]
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
+# Datasheet pg 92
+class UDPDataInd(G3Resp):
+    g3_id = 0xd2
+    g3_name = 'G3UDP-DATA.Ind'
+
+    def decode(self, msg):
+        super().decode(msg)
+        fmt = "<BH"
+        offset = 1
+        raw_fields = struct.unpack_from(fmt, msg, offset)
+        offset = offset + struct.calcsize(fmt)
+        self.fields['prevhop_addrmode'] = raw_fields[0]
+        self.fields['prevhop_pan'] = raw_fields[1]
+        if self.fields['prevhop_addrmode'] == 0:
+            fmt = "<"
+        elif self.fields['prevhop_addrmode'] == 2:
+            fmt = "<H"
+        elif self.fields['prevhop_addrmode'] == 3:
+            fmt = "<Q"
+        else:
+            logging.error(f"Unknown prevhop_addrmode {self.fields['prevhop_addrmode']}")
+            return
+        fmt = fmt + "BBBB3sB"
+        raw_fields = struct.unpack_from(fmt, msg, offset)
+        offset = offset + struct.calcsize(fmt)
+        o = 0
+        if self.fields['prevhop_addrmode'] != 0:
+            o = 1
+            self.fields['prevhop_addr'] = raw_fields[0]
+        self.fields['lqi'] = raw_fields[0+o]
+        self.fields['phasediff'] = raw_fields[1+o]
+        try:
+            self.fields['modtype'] = G3C.G3_PHY_MODTYPE[raw_fields[2+o]]
+        except KeyError:
+            logging.error(f"Unknown modulation type: {raw_fields[2]}")
+        try:
+            self.fields['modscheme'] = G3C.G3_PHY_MODSCHEME[raw_fields[3+o]]
+        except KeyError:
+            logging.error(f"Unknown modulation scheme: {raw_fields[3]}")
+        self.fields['tonemap'] = raw_fields[4+o]
+        self.fields['bc0num'] = int(raw_fields[5+o])
+        bc0num = self.fields['bc0num']
+        if bc0num > 6:
+            logging.error(f"bc0num is over maximum: {bc0num}")
+            return
+        fmt = f"<{bc0num}BBB16sH16sHH"
+        raw_fields = struct.unpack_from(fmt, msg, offset)
+        offset = offset + struct.calcsize(fmt)
+        self.fields['bc0'] = []
+        for i in range(0, bc0num):
+            self.fields['bc0'].append(raw_fields[i])
+        self.fields['prevhop_media'] = raw_fields[0+bc0num]
+        self.fields['conn_id'] = raw_fields[1+bc0num]
+        self.fields['src_addr'] = raw_fields[2+bc0num]
+        self.fields['src_port'] = raw_fields[3+bc0num]
+        self.fields['dest_addr'] = raw_fields[4+bc0num]
+        self.fields['dest_port'] = raw_fields[5+bc0num]
+        self.fields['data_len'] = raw_fields[6+bc0num]
+        self.fields['data'] = msg[offset:]
+        if self.fields['data_len'] != len(self.fields['data']):
+            logging.error(f"UDP packet recived, len != len(data); len: {self.fields['data_len']}, len(data): {len(self.fields['data'])}")
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
+# Datasheet pg 92
+class UDPConnSet(G3Resp):
+    g3_id = 0xd4
+    g3_name = 'G3UDP-CONN-SET'
+
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from("<B", msg['data'], 1)
+        self.raw_fields = raw_fields
+        try:
+            self.fields['status'] = G3C.G3_RESULTS[raw_fields[0]]
+        except KeyError:
+            logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
+# Datasheet pg 92
+class UDPConnGet(G3Resp):
+    g3_id = 0xd6
+    g3_name = 'G3UDP-CONN-GET'
+
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from("<BB16sHH", msg['data'], 1)
+        self.raw_fields = raw_fields
+        try:
+            self.fields['status'] = G3C.G3_RESULTS[raw_fields[0]]
+        except KeyError:
+            logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
+        self.fields['conn_id'] = raw_fields[1]
+        self.fields['remote_addr'] = raw_fields[2]
+        self.fields['remote_port'] = raw_fields[3]
+        self.fields['local_port'] = raw_fields[4]
+
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
 # Datasheet pg 93
 class G3EchoResp(G3Resp):
     g3_id = 0xd8

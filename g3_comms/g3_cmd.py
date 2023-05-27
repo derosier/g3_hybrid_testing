@@ -361,6 +361,107 @@ class BootSrvSetPSKCmd(G3Cmd):
         raw = struct.pack("<Q16sH", self.fields['extd_addr'], self.fields['psk'], self.fields['addr'])
         return raw
 
+# Datasheet pg 90
+class UDPData(G3Cmd):
+    g3_id = 0xd0
+    g3_name = 'G3UDP-DATA'
+    rx_msgs = ['G3UDP-DATA']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('udp', help='Send UDP data')
+        parser.add_argument('--connid', required=True, type=int, help='Connection ID')
+        parser.add_argument('--handle', required=True, type=int, help='Handle')
+        parser.add_argument('data', help="Data as string or hex with '0x' in little endian byte order")
+        return parser
+
+    def parse_args(self, args):
+        if 0 <= args.connid <= 10:
+            self.fields['conn_id'] = args.connid
+        else:
+            logging.error("Invalid connection id")
+            raise ValueError
+        self.fields['handle'] = args.handle
+        self.fields['data'] = g3_comms.g3_msgs.parse_data(args.data)
+
+    # Note: we only work with existing connections. Must setup a connection first. All addresses
+    # ports, etc will be sent with zeros to tell the firmware to use the connection.
+    def encode_cmd(self):
+        destaddr = bytes.fromhex("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00")
+        destport = 0
+        length = len(self.fields['data'])
+        raw = struct.pack("<BB16sHH{length}s", self.fields['handle'], self.fields['conn_id'],
+                                               destaddr, destport,
+                                               length, self.fields['data'])
+        return raw
+
+# Datasheet pg 92
+class UDPConnSetCmd(G3Cmd):
+    g3_id = 0xd3
+    g3_name = 'G3UDP-CONN-SET'
+    rx_msgs = ['G3UDP-CONN-SET']
+    next_port = 49152
+    next_conn_id = 0
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('connset', help='Setup an UDP connection')
+        parser.add_argument('--addr', default=-1, type=int, help="Short address, -1 (default) to accept from all")
+        parser.add_argument('--rport', default=0, type=int, help='Remote port, 0 (default) to accept from any')
+        parser.add_argument('--port', type=int, help='Local port')
+        parser.add_argument('--connid', type=int, help='Connection id')
+        return parser
+
+    def parse_args(self, args):
+        # values below are 16 bit, just force the bottom bits and call it good.
+        if args.addr == -1:
+            self.fields['addr'] = 0
+        else:
+            self.fields['addr'] = args.addr & 0xffff
+        self.fields['remote_port'] = args.rport & 0xffff
+        if args.port:
+            self.fields['local_port'] = args.port & 0xffff
+        else:
+            self.fields['local_port'] = UDPConnSetCmd.next_port
+            UDPConnSetCmd.next_port = UDPConnSetCmd.next_port + 1
+        if args.connid:
+            self.fields['conn_id'] = args.connid
+        else:
+            self.fields['conn_id'] = UDPConnSetCmd.next_conn_id
+            UDPConnSetCmd.next_conn_id = UDPConnSetCmd.next_conn_id + 1
+        if self.fields['conn_id'] < 0 or self.fields['conn_id'] > 10:
+            self.fields['conn_id'] = 10
+            logging.error("Invalid connection id, using 10")
+
+    def encode_cmd(self):
+        self.fields['ipv6addr'] = g3_comms.g3_msgs.hi_ipv6_set_ipaddr(self.fields['addr'])
+        raw = struct.pack("<B16sHH", self.fields['conn_id'], self.fields['ipv6addr'],
+                                     self.fields['remote_port'], self.fields['local_port'])
+        return raw
+
+# Datasheet pg 92
+class UDPConnGetCmd(G3Cmd):
+    g3_id = 0xd5
+    g3_name = 'G3UDP-CONN-GET'
+    rx_msgs = ['G3UDP-CONN-GET']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('connget', help='Get information about an UDP connection')
+        parser.add_argument('connid', required=True, type=int, help='Connection id')
+        return parser
+
+    def parse_args(self, args):
+        if 0 <= args.connid <= 10:
+            self.fields['conn_id'] = args.connid
+        else:
+            logging.error("Invalid connection id")
+            raise ValueError
+
+    def encode_cmd(self):
+        try:
+            raw = struct.pack("<B", self.fields['conn_id'])
+        except KeyError:
+            raw = b''
+        return raw
+
 # Datasheet pg 93
 class ICMPEchoCmd(G3Cmd):
     g3_id = 0xd7
