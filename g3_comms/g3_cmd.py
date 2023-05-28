@@ -445,7 +445,7 @@ class UDPConnGetCmd(G3Cmd):
 
     def _add_parser(self, subparsers):
         parser = subparsers.add_parser('connget', help='Get information about an UDP connection')
-        parser.add_argument('connid', required=True, type=int, help='Connection id')
+        parser.add_argument('connid', type=int, help='Connection id')
         return parser
 
     def parse_args(self, args):
