@@ -8,8 +8,7 @@ class G3Resp():
     g3_id = 0xFE  # this is not used in the doc
     g3_name = 'UNKNOWN'
     def __init__(self):
-        self.callback = None
-        self.cb_context = None
+        self.callbacks = [] # List of tupples, (callback, context)
         self.raw_msg = b''
         self.raw_fields = []
         self.fields = {}
@@ -22,13 +21,19 @@ class G3Resp():
         logging.debug(f'Msg {self.g3_name} (0x{self.g3_id:02x}): {self.fields}')
 
     def set_hook(self, callback, context):
-        logging.debug(f'{self.g3_name} setting callback to {context}.{callback}')
-        self.callback = callback
-        self.cb_context = context
+        logging.debug(f'{self.g3_name} setting callback[{len(self.callbacks)}] to {context}.{callback}')
+        self.callbacks.append((callback, context))
+
+    def clear_hook(self, callback, context):
+        logging.debug(f'{self.g3_name} clearing callback to {callback}')
+        try:
+            self.callbacks.remove((callback, context))
+        except ValueError:
+            logging.warning(f'{self.g3_name} can not find callback {context}.{callback}')
 
     def call_hook(self):
-        if self.callback is not None:
-            self.callback(self.cb_context, self.g3_name, self.fields)
+        for callback in self.callbacks:
+            callback[0](callback[1], self.g3_name, self.fields)
 
 # Below responses are defined in the Datasheet AN5603 from ST.
 
