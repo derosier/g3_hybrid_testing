@@ -556,7 +556,7 @@ class UDPDataInd(G3Resp):
         super().decode(msg)
         fmt = "<BH"
         offset = 1
-        raw_fields = struct.unpack_from(fmt, msg, offset)
+        raw_fields = struct.unpack_from(fmt, msg['data'], offset)
         offset = offset + struct.calcsize(fmt)
         self.fields['prevhop_addrmode'] = raw_fields[0]
         self.fields['prevhop_pan'] = raw_fields[1]
@@ -570,7 +570,7 @@ class UDPDataInd(G3Resp):
             logging.error(f"Unknown prevhop_addrmode {self.fields['prevhop_addrmode']}")
             return
         fmt = fmt + "BBBB3sB"
-        raw_fields = struct.unpack_from(fmt, msg, offset)
+        raw_fields = struct.unpack_from(fmt, msg['data'], offset)
         offset = offset + struct.calcsize(fmt)
         o = 0
         if self.fields['prevhop_addrmode'] != 0:
@@ -593,7 +593,7 @@ class UDPDataInd(G3Resp):
             logging.error(f"bc0num is over maximum: {bc0num}")
             return
         fmt = f"<{bc0num}BBB16sH16sHH"
-        raw_fields = struct.unpack_from(fmt, msg, offset)
+        raw_fields = struct.unpack_from(fmt, msg['data'], offset)
         offset = offset + struct.calcsize(fmt)
         self.fields['bc0'] = []
         for i in range(0, bc0num):
@@ -605,7 +605,7 @@ class UDPDataInd(G3Resp):
         self.fields['dest_addr'] = raw_fields[4+bc0num]
         self.fields['dest_port'] = raw_fields[5+bc0num]
         self.fields['data_len'] = raw_fields[6+bc0num]
-        self.fields['data'] = msg[offset:]
+        self.fields['data'] = msg['data'][offset:]
         if self.fields['data_len'] != len(self.fields['data']):
             logging.error(f"UDP packet recived, len != len(data); len: {self.fields['data_len']}, len(data): {len(self.fields['data'])}")
 
@@ -671,7 +671,7 @@ class G3EchoResp(G3Resp):
 # Datasheet pg 93
 def decode_echo(msg, offset):
     fmt = "<BH"
-    raw_fields = struct.unpack_from(fmt, msg, offset)
+    raw_fields = struct.unpack_from(fmt, msg['data'], offset)
     fields = {}
     offset = offset + struct.calcsize(fmt)
     fields['prevhop_addrmode'] = raw_fields[0]
@@ -686,7 +686,7 @@ def decode_echo(msg, offset):
         logging.error(f"Unknown prevhop_addrmode {fields['prevhop_addrmode']}")
         return fields
     fmt = fmt + "BBBB3sB"
-    raw_fields = struct.unpack_from(fmt, msg, offset)
+    raw_fields = struct.unpack_from(fmt, msg['data'], offset)
     offset = offset + struct.calcsize(fmt)
     o = 0
     if fields['prevhop_addrmode'] != 0:
@@ -709,7 +709,7 @@ def decode_echo(msg, offset):
         logging.error(f"bc0num is over maximum: {bc0num}")
         return fields
     fmt = f"<{bc0num}BB16sH"
-    raw_fields = struct.unpack_from(fmt, msg, offset)
+    raw_fields = struct.unpack_from(fmt, msg['data'], offset)
     offset = offset + struct.calcsize(fmt)
     fields['bc0'] = []
     for i in range(0, bc0num):

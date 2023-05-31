@@ -396,7 +396,7 @@ class UDPData(G3Cmd):
         destaddr = bytes.fromhex("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00")
         destport = 0
         length = len(self.fields['data'])
-        raw = struct.pack("<BB16sHH{length}s", self.fields['handle'], self.fields['conn_id'],
+        raw = struct.pack(f"<BB16sHH{length}s", self.fields['handle'], self.fields['conn_id'],
                                                destaddr, destport,
                                                length, self.fields['data'])
         return raw
@@ -419,12 +419,13 @@ class UDPConnSetCmd(G3Cmd):
 
     def parse_args(self, args):
         # values below are 16 bit, just force the bottom bits and call it good.
+        print(f"set cmd {args}")
         if args.addr == -1:
-            self.fields['addr'] = 0
+            self.fields['addr'] = -1
         else:
             self.fields['addr'] = args.addr & 0xffff
         self.fields['remote_port'] = args.rport & 0xffff
-        if args.port:
+        if args.port >= 0:
             self.fields['local_port'] = args.port & 0xffff
         else:
             self.fields['local_port'] = UDPConnSetCmd.next_port
@@ -439,7 +440,11 @@ class UDPConnSetCmd(G3Cmd):
             logging.error("Invalid connection id, using 10")
 
     def encode_cmd(self):
-        self.fields['ipv6addr'] = g3_comms.g3_msgs.hi_ipv6_set_ipaddr(self.fields['addr'])
+        if self.fields['addr'] == -1:
+            self.fields['ipv6addr'] = bytes.fromhex("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00")
+        else:
+            self.fields['ipv6addr'] = g3_comms.g3_msgs.hi_ipv6_set_ipaddr(self.fields['addr'])
+        print(f"set encodode ipv6: {self.fields['ipv6addr']}")
         raw = struct.pack("<B16sHH", self.fields['conn_id'], self.fields['ipv6addr'],
                                      self.fields['remote_port'], self.fields['local_port'])
         return raw
