@@ -9,12 +9,15 @@ crc = pycrc.algorithms.Crc(width = 16, poly = 0x1021,
                            reflect_out = False, xor_out = 0x0)
 
 _G_wait = threading.Event()
+_G_returned_fields = {}
 
 # Arguments:
 #    name - The name of the message rx, which would be G3Resp.g3_name
 #    fields - the parsed fields from the message
 def cb_wait(name, fields):
+    global _G_returned_fields
     logging.debug(f"cb_wait called with ({name}, {fields})")
+    _G_returned_fields = fields
     _G_wait.set()
 
 def encap_msg(g3_id, data):
@@ -49,3 +52,5 @@ def send_and_wait(device, cmd, timeout=5):
     if not _G_wait.wait(timeout):
         # Timed out instead of finished
         print(f"Command {cmd.g3_name} response timed out.")
+        return {}
+    return _G_returned_fields
