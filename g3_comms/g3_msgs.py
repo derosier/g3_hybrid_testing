@@ -34,3 +34,15 @@ def hi_ipv6_set_ipaddr(short_addr, pan_id=30749):
     ipv6 = ipv6 + short_addr.to_bytes(2, "big")[1:2]
     logging.debug(f"encoded ipv6 address {ipv6}")
     return ipv6
+
+def hi_short_addr_from_ipaddr(ipv6):
+    logging.debug(f"decoding short_addr from ipv6 address {ipv6}")
+    short_addr = int.from_bytes(ipv6[14:], "big")
+    logging.debug(f"decoded short_addr {short_addr}")
+    return short_addr
+
+def hi_pan_from_ipaddr(ipv6):
+    logging.debug(f"decoding pan from ipv6 address {ipv6}")
+    pan = int.from_bytes(ipv6[8:10], "big")
+    logging.debug(f"decoded pan {pan}")
+    return pan
