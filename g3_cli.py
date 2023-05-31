@@ -12,6 +12,7 @@ import g3_comms.g3_tx
 import g3_comms.g3_msgs
 from g3_comms import g3_resp
 from g3_comms import g3_cmd
+import g3_comms.g3_connman
 
 default_port="/dev/ttyACM0"
 default_baudrate=115200
@@ -71,6 +72,8 @@ g3_comms.g3_msgs.msg_cmds['connset'] = g3_cmd.UDPConnSetCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['connget'] = g3_cmd.UDPConnGetCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['echo'] = g3_cmd.ICMPEchoCmd(subparsers)
 
+connman = g3_comms.g3_connman.ConnMan(g3_comms.g3_msgs.msg_decode_list, subparsers)
+
 args = parser.parse_args()
 
 lineformat = "%(asctime)s: [%(levelname)s] %(message)s"
@@ -90,6 +93,29 @@ def interactive_parser_error(self=None, status=0, message=None): #pylint: disabl
         print(f"{message}")
     raise ParserException()
 
+def do_cli_cmd(device):
+    if args.cmd in ('connman'):
+        connman.do_cmds(device, args)
+
+def do_g3_cmd(device, dryrun):
+    try:
+        try:
+            g3_comms.g3_msgs.msg_cmds[args.cmd].parse_args(args)
+        except ValueError:
+            print("Unable to convert data input")
+        else:
+            g3_comms.g3_msgs.msg_cmds[args.cmd].setup_rx(g3_comms.g3_msgs.msg_decode_list)
+            if dryrun:
+                msg = g3_comms.g3_tx.form_msg(g3_comms.g3_msgs.msg_cmds[args.cmd])
+                print(f"Dry run, message encoded: {msg}")
+            else:
+                g3_comms.g3_tx.send_and_wait(device, g3_comms.g3_msgs.msg_cmds[args.cmd], timeout=args.timeout)
+            g3_comms.g3_msgs.msg_cmds[args.cmd].clean_rx(g3_comms.g3_msgs.msg_decode_list)
+    except KeyError:
+        print(f"Unrecognized command {args.cmd}. Exiting.")
+    if not args.dump:
+        g3_comms.g3_rx.G3Rx.quit()
+
 def main():
     global args
     logging.debug("*** Starting cli")
@@ -100,7 +126,6 @@ def main():
     logging.info(f'Using port {port} at baud {baudrate}')
 
     signal.signal(signal.SIGINT, shutdown_handler)
-
     logging.debug(f"Registered messages for decode: {g3_comms.g3_msgs.msg_decode_list}")
     logging.debug(f"Registered commands to tx: {g3_comms.g3_msgs.msg_cmds.keys()}")
     device = serial.Serial(port, baudrate=baudrate, timeout=0)
@@ -117,30 +142,24 @@ def main():
     rx_thread = threading.Thread(target=rx_protocol.run)
     rx_thread.start()
 
+    if args.dump and not args.interactive:
+        print("--dump enabled, enter ^C to exit")
+
+    if not args.cmd and not args.interactive:
+        print("No command, in dump mode, enter ^C to exit")
+
+    # connman.init_setup() does commands and expects responses. It is unable to work unless we do
+    # it after the rx_thread starts.
+    connman.init_setup(device)
+
     while True:
         # Now that we can Rx responses, now process and run commands
         logging.debug(f"Command entered {args.cmd}")
         if args.cmd:
-            if args.dump and not args.interactive:
-                print("--dump enabled, enter ^C to exit")
-            try:
-                try:
-                    g3_comms.g3_msgs.msg_cmds[args.cmd].parse_args(args)
-                except ValueError:
-                    print("Unable to convert data input")
-                else:
-                    g3_comms.g3_msgs.msg_cmds[args.cmd].setup_rx(g3_comms.g3_msgs.msg_decode_list)
-                    if dryrun:
-                        msg = g3_comms.g3_tx.form_msg(g3_comms.g3_msgs.msg_cmds[args.cmd])
-                        print(f"Dry run, message encoded: {msg}")
-                    else:
-                        g3_comms.g3_tx.send_and_wait(device, g3_comms.g3_msgs.msg_cmds[args.cmd], timeout=args.timeout)
-            except KeyError:
-                print(f"Unrecognized command {args.cmd}. Exiting.")
-            if not args.dump:
-                g3_comms.g3_rx.G3Rx.quit()
-        elif not args.interactive:
-            print("No command, in dump mode, enter ^C to exit")
+            if args.cmd in ('connman'):
+                do_cli_cmd(device)
+            else:
+                do_g3_cmd(device, dryrun)
 
         if not args.interactive:
             break

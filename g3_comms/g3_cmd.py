@@ -9,12 +9,14 @@ class G3Cmd():
     g3_id = 0xFE  # this is not used in the doc
     g3_name = 'UNKNOWN'
     rx_msgs = []
-    def __init__(self, subparsers):
+    def __init__(self, subparsers=None):
         self.raw = b''
         self.fields = {}
         self.callback = None
         self.rx_got = {}
-        self.parser = self._add_parser(subparsers)
+        self.parser = None
+        if subparsers:
+            self.parser = self._add_parser(subparsers)
 
     def _add_parser(self, _):
         return False
