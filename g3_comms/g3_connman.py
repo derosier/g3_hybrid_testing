@@ -9,9 +9,10 @@ import g3_comms.g3_msgs
 class ConnMan():
     MAX_CONN = 0xA
     SELF_ID_MSGS = ('G3BOOT-DEV-START', 'HOSTIF-DBGTOOL')
-    def __init__(self, msg_list, subparsers):
+    def __init__(self, msg_list, subparsers=None):
         self.msg_list = msg_list
-        self.parser = self._add_parser(subparsers)
+        if subparsers:
+            self.parser = self._add_parser(subparsers)
         # connections data structure is a dictonary where the connection id is the key
         # and each connection is represented by a dictionary with the following elements:
         #    {remote_addr, remote_port, local_port}
