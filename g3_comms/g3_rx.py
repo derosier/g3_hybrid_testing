@@ -1,19 +1,13 @@
 import logging
 import time
-
 import struct
 
-import pycrc.algorithms
-
 import g3_comms.g3_msgs
+from g3_comms.g3_crc import crc16
 
 G3_HEADER_LEN = 8 # Not including sync bytes
 G3_TAG_LEN = 8
 G3_CRC_LEN = 2
-
-crc = pycrc.algorithms.Crc(width = 16, poly = 0x1021,
-                           reflect_in = False, xor_in = 0x0,
-                           reflect_out = False, xor_out = 0x0)
 
 class G3Rx():
     # class quit variable will cause any/all instances to quit
@@ -82,9 +76,8 @@ class G3Rx():
                 sec_tag = b''
 
             syncro = b'\x16\x16'
-            computed_crc = crc.bit_by_bit_fast(syncro + header + msg['data'] + sec_tag)
+            computed_crc = crc16.bit_by_bit_fast(syncro + header + msg['data'] + sec_tag)
             logging.debug(f"CRC computed {computed_crc:04x}, CRC Rx {msg['crc']:04x}")
-            # TODO: check the CRC
             if computed_crc != msg['crc']:
                 return None
 

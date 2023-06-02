@@ -2,11 +2,7 @@ import logging
 import struct
 import threading
 
-import pycrc.algorithms
-
-crc = pycrc.algorithms.Crc(width = 16, poly = 0x1021,
-                           reflect_in = False, xor_in = 0x0,
-                           reflect_out = False, xor_out = 0x0)
+from g3_comms.g3_crc import crc16
 
 _G_wait = threading.Event()
 _G_returned_fields = {}
@@ -27,7 +23,7 @@ def encap_msg(g3_id, data):
                             0x0, 0) # security mode, counter
     msg = header + data
     # Since we're not using security, there's no TAG bytes
-    computed_crc = crc.bit_by_bit_fast(msg)
+    computed_crc = crc16.bit_by_bit_fast(msg)
     complete_msg = msg + struct.pack("<H", computed_crc)
     return complete_msg
 
