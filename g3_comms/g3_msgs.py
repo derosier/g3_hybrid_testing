@@ -26,6 +26,9 @@ def parse_data(argdata):
 
 def hi_ipv6_set_ipaddr(short_addr, pan_id=30749):
     logging.debug(f"encoding ipv6 address from short {short_addr} on pan {pan_id}")
+    if short_addr < 0:
+        logging.debug("short_addr < 0, encoding a zero ipv6")
+        return bytes.fromhex("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00")
     ipv6 = bytes.fromhex("FE 80 00 00 00 00 00 00")
     ipv6 = ipv6 + pan_id.to_bytes(2, "big")[0:1]
     ipv6 = ipv6 + pan_id.to_bytes(2, "big")[1:2]
@@ -37,6 +40,8 @@ def hi_ipv6_set_ipaddr(short_addr, pan_id=30749):
 
 def hi_short_addr_from_ipaddr(ipv6):
     logging.debug(f"decoding short_addr from ipv6 address {ipv6}")
+    if ipv6 == bytes.fromhex("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"):
+        return -1
     short_addr = int.from_bytes(ipv6[14:], "big")
     logging.debug(f"decoded short_addr {short_addr}")
     return short_addr
