@@ -383,6 +383,14 @@ class UDPData(G3Cmd):
         parser.add_argument('data', help="Data as string or hex with '0x' in little endian byte order")
         return parser
 
+    # args:
+    #     connid (int): connection id of already created connection via 'G3UDP-CONN-SET'
+    #     handle (int): handle, this is just passed in
+    #     bindata (bytes): optional data already in b'' format. If not present, requires data
+    #     data (string/bytes): textual representation of data. Might be a string, or b'', but if
+    #                          it starts with '0x' its assumed to be encoded in hex and will be passed
+    #                          through bytes.fromhex. If not, it's assumed to be UTF-8. Required
+    #                          IIF bindata doesn't exist.
     def parse_args(self, args):
         if 0 <= args.connid <= 10:
             self.fields['conn_id'] = args.connid
@@ -390,7 +398,10 @@ class UDPData(G3Cmd):
             logging.error("Invalid connection id")
             raise ValueError
         self.fields['handle'] = args.handle
-        self.fields['data'] = g3_comms.g3_msgs.parse_data(args.data)
+        try:
+            self.fields['data'] = args.bindata
+        except AttributeError:
+            self.fields['data'] = g3_comms.g3_msgs.parse_data(args.data)
 
     # Note: we only work with existing connections. Must setup a connection first. All addresses
     # ports, etc will be sent with zeros to tell the firmware to use the connection.
