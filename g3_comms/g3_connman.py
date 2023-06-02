@@ -165,10 +165,12 @@ class ConnMan():
             fields = self.set_connection(device, new_id, addr, remote_port, local_port)
             if fields['status'] != 'G3_SUCCESS':
                 logging.error(f"Error when setting connection, status: {fields['status']}")
+                new_id = None
             else:
                 self._add_conn(new_id, addr, remote_port, local_port)
         else:
             logging.warning("Unable to add new connection.")
+        return new_id
 
     def reload_connections(self, device):
         self.my_short_address = 0xffff
