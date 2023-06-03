@@ -137,6 +137,9 @@ class ConnMan():
     def load_all_connections(self, device):
         for i in range(0,ConnMan.MAX_CONN+1):
             conn = self.get_connection(device, i)
+            if not conn:
+                logging.warning("Timeout loading all connections, halting.")
+                break
             if self.valid_connection_fields(conn):
                 self._add_conn(i, g3_comms.g3_msgs.hi_short_addr_from_ipaddr(conn['remote_addr']),
                                  conn['remote_port'], conn['local_port'])
