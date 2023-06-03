@@ -27,16 +27,18 @@ class G3Cmd():
     def setup_rx(self, supported_rx_msgs):
         logging.debug(f"{self.g3_name}.setup_rx({supported_rx_msgs})")
         for msg in supported_rx_msgs:
-            if msg.g3_name in self.rx_msgs:
-                self.rx_got[msg.g3_name] = 0
-                msg.set_hook(self._callback, self)
+            for rx_msg in self.rx_msgs:
+                if msg.g3_name == rx_msg:
+                    self.rx_got[msg.g3_name] = 0
+                    msg.set_hook(self._callback, self)
 
     def clean_rx(self, supported_rx_msgs):
         logging.debug(f"{self.g3_name}.clean_rx({supported_rx_msgs})")
         for msg in supported_rx_msgs:
-            if msg.g3_name in self.rx_msgs:
-                del self.rx_got[msg.g3_name]
-                msg.clear_hook(self._callback, self)
+            for rx_msg in self.rx_msgs:
+                if msg.g3_name == rx_msg:
+                    del self.rx_got[msg.g3_name]
+                    msg.clear_hook(self._callback, self)
 
     def encode_cmd(self):
         logging.debug(f"{self.g3_name}.encode_cmd()")

@@ -52,8 +52,9 @@ class ConnMan():
         # Setup the Rx messages to call the call-back and notify us of pan and short id
         # changes.
         for msg in self.msg_list:
-            if msg.g3_name in ConnMan.SELF_ID_MSGS:
-                msg.set_hook(self._info_callback, self)
+            for id_msg in ConnMan.SELF_ID_MSGS:
+                if msg.g3_name == id_msg:
+                    msg.set_hook(self._info_callback, self)
         self.req_info(device)
         self.load_all_connections(device)
         self.initialized = True

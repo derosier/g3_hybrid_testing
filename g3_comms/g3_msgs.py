@@ -51,3 +51,7 @@ def hi_pan_from_ipaddr(ipv6):
     pan = int.from_bytes(ipv6[8:10], "big")
     logging.debug(f"decoded pan {pan}")
     return pan
+
+def print_callbacks(msg_list, prefix=''):
+    for msg in msg_list:
+        print(f"{prefix}{msg.g3_name}: {msg.callbacks}")
