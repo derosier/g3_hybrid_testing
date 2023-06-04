@@ -41,7 +41,7 @@ class G3Rx():
         if self.sync_msg():
             header = self.device.read(G3_HEADER_LEN)
             if len(header) != G3_HEADER_LEN:
-                logging.error(f"Invalid header: {header.hex(' ')}")
+                logging.error(f"RX get_msg() Invalid header: {header.hex(' ')}")
                 return None
 
             up_header = struct.unpack("<BHBI", header)
