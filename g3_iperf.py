@@ -5,6 +5,7 @@ import argparse
 import threading
 import signal
 import struct
+import time
 
 import serial
 
@@ -22,6 +23,10 @@ default_baudrate=115200
 # Measured 20 seconds for coordinator to start, and 25 seconds for device to start on a clean network
 START_TIMEOUT = 60.0
 SRV_START_TIMEOUT = 0.5
+PING_START_TIMEOUT = 5.0
+PING_START_RETRIES = 10
+PING_RESP_TIMEOUT = 20.0
+SRV_ECHO_TIMEOUT = 0.5
 
 SRV_UDP_PORT = 5000
 CLIENT_UDP_PORT = 5001
@@ -31,6 +36,7 @@ MSG_TYPE_START = 0x01
 MSG_TYPE_DONE = 0x02
 MSG_TYPE_PING = 0x03
 MSG_TYPE_PONG = 0x04
+MSG_TYPE_NACK = 0x84
 MSG_TYPE_ERROR = 0xFF
 MSG_TYPE_INVALID = 0xFF
 
@@ -39,6 +45,8 @@ MSG_DIR_OUT = 0x01
 MSG_DIR_RESP = 0x02
 
 MSG_MAX_PACKETS = 1000
+
+NS_IN_SEC = 1000000000
 
 # 400 bytes below
 # pg 36 shows the PHY MTU. We'll assume 2RS blocks and stay < the maxes for now
@@ -62,7 +70,7 @@ MSG_DATA = bytes.fromhex(
 parser = argparse.ArgumentParser()
 parser.add_argument("-p", "--port", default=default_port, help=f"Serial port, default {default_port}")
 parser.add_argument("-b", "--baud", default=default_baudrate, help=f"Serial port baud rate, default {default_baudrate}. GUI sniffer uses 460800 baud.")
-parser.add_argument("-V", "--verbosity", default="DEBUG", help="Logging verbosity. [CRITICAL, ERROR, WARNING, INFO, DEBUG]")
+parser.add_argument("-V", "--verbosity", default="WARNING", help="Logging verbosity. [CRITICAL, ERROR, WARNING, INFO, DEBUG]")
 parser.add_argument("-t", "--timeout", type=int, default=5, help="Command wait for response timeout, default 5 seconds.")
 parser.add_argument("-n", "--noreset", action="store_true", help="Assume properly running, don't issue HW and SW resets. Saves 30 seconds on start.")
 group = parser.add_mutually_exclusive_group(required=True)
@@ -181,6 +189,7 @@ def check_status_ok(fields):
             return False
     except KeyError:
         logging.debug("Check status error fields['status'] not found.")
+        fields['status'] = 'timed out'
         return False
     return True
 
@@ -200,13 +209,14 @@ def hw_reset(device):
 
 def send_udp(device, connid, handle, packet):
     cmd_args = argparse.Namespace()
+    print(f"send_udp to connection {connid}")
     cmd_args.connid = connid
     cmd_args.handle = handle
     cmd_args.bindata = packet
     udp_cmd = g3_cmd.UDPData()
     udp_cmd.parse_args(cmd_args)
     udp_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
-    fields = g3_comms.g3_tx.send_and_wait(device, udp_cmd)
+    fields = g3_comms.g3_tx.send_and_wait(device, udp_cmd, timeout=20)
     udp_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
     if not check_status_ok(fields):
         logging.error("G3UDP-DATA unsuccessful.")
@@ -326,14 +336,41 @@ def encode_done_packet(packets_sent):
 
 def init_accounting(stats):
     logging.debug(f"    init_srv_accounting({stats})")
+    stats.clear()
+    stats['send_count'] = 0
+    stats['rx_count'] = 0
+    stats['resp_count'] = 0
+    stats['ping_count'] = 0
+    stats['send_bytes'] = 0
+    stats['rx_bytes'] = 0
+    stats['resp_bytes'] = 0
+    stats['ping_bytes'] = 0
+    stats['corrupted_count'] = 0
+    stats['skipped_count'] = 0
+    stats['send_error'] = 0
+    stats['end_time_ns'] = time.monotonic_ns()
+    # capturing start time should be the last thing we do.  I know we'll have a little overhead
+    # due to python, but might as well minimize that.
+    stats['start_time_ns'] = time.monotonic_ns()
 
 def finalize_accounting(stats):
+    # capturing end time should be the first thing we do.  I know we'll have a little overhead
+    # due to python, but might as well minimize that.
+    stats['end_time_ns'] = time.monotonic_ns()
     logging.debug(f"    finalize_srv_accounting({stats})")
+
+# start is in integer nanoseconds based on time.monotronic_ns()
+# t is in seconds, can be int or floating, either works
+def time_elapsed(t, start):
+    elapsed = (time.monotonic_ns() - start)/NS_IN_SEC
+    return t <= elapsed
 
 def print_stats(client_info, stats):
     print("iperf session results")
     print(f"Client:\n\t{client_info}")
     print(f"Stats:\n\t{stats}")
+    elapsed_s = (stats['end_time_ns'] - stats['start_time_ns'])/NS_IN_SEC
+    print(f"Elapsed time: {elapsed_s:.3f}")
 
 ####################################################################################################
 ##  Server stuff
@@ -403,8 +440,91 @@ def wait_for_connection(device, client_info):
     # We only get here when we're no longer _G_running.  Everything else loops or returns
     return False
 
-def do_echos(device, connid, client_info, stats): #pylint: disable=unused-argument
+def check_ping(packet, raw_msg, num, client_info, stats):
+    # first, validate CRC is good!
+    if packet['crc'] != packet['computed_crc']:
+        stats['corrupted_count'] = stats['corrupted_count'] + 1
+        print("BAD CRC")
+        return (False,num)
+
+    # second, direction, short id - if these are invalid, something's weird
+    if packet['direction'] != MSG_DIR_OUT or packet['sender_id'] != client_info['addr']:
+        stats['corrupted_count'] = stats['corrupted_count'] + 1
+        print("BAD META")
+        return (False, num)
+
+    # check packet number
+    if packet['packet_num'] > num:
+        print(f"Skipped packet {num}")
+        # technically might still be a valid packet, so increment number
+        stats['skipped_count'] = stats['skipped_count'] + (packet['packet_num'] - num)
+    elif packet['packet_num'] != num:
+        print(f"BAD PACKET NUM; got {packet['packet_num']} expected {num}")
+        stats['corrupted_count'] = stats['corrupted_count'] + 1
+        return (False, packet['packet_num'])
+
+    # validate data
+    if packet['data'] != MSG_DATA:
+        print("BAD DATA")
+        stats['corrupted_count'] = stats['corrupted_count'] + 1
+        return (False, packet['packet_num'])
+
+    stats['ping_count'] = stats['ping_count'] + 1
+    stats['ping_bytes'] = stats['ping_bytes'] + len(raw_msg['data'])
+
+    return (True, packet['packet_num'])
+
+def do_echos(device, client_info, stats): #pylint: disable=unused-argument
     logging.debug("    do_echos()")
+    # So, we're in do_echos until we get a stop or a start packet. We'll use those as things to
+    # kick us out of this mode, but otherwise we just rx and then echo packets.
+    done = False
+    msg_number = 1 # we start with 1
+    ping_ok = False
+    handle = 1
+    while not done and _G_running:
+        _G_wait_data.clear()
+        if not _G_wait_data.wait(SRV_ECHO_TIMEOUT):
+            continue # timeout here is expected
+
+        # We are also going to assume packets can't come in faster than we process them.
+        # TODO: queue packets!
+        raw_msg = _G_returned_data
+        packet = decode_packet(raw_msg['data'])
+
+        # When we're in this mode, only accept from our client
+        if client_info['addr'] != g3_comms.g3_msgs.hi_short_addr_from_ipaddr(raw_msg['src_addr']):
+            # just discard this right now
+            continue
+
+        stats['rx_count'] = stats['rx_count'] + 1
+        stats['rx_bytes'] = stats['rx_bytes'] + len(raw_msg['data'])
+
+        # Now, figure out the type and do the right thing; We'll assume this is a valid bit of data
+        if (packet['type'] == MSG_TYPE_START or
+            packet['type'] == MSG_TYPE_DONE):
+            done = True
+            continue
+        if packet['type'] == MSG_TYPE_PING:
+            (ping_ok, msg_number) = check_ping(packet, raw_msg, msg_number, client_info, stats)
+            # Note in the case of skips, we update msg_number to the new packet number. We only
+            # increase the number, anything that decreases it is considered corrupted.
+        else:
+            # what could it be?  Ignore and drop. Count it as invalid.
+            stats['corrupted_count'] = stats['corrupted_count'] + 1
+            continue
+
+        if ping_ok:
+            # If we got this far, we have a 100% valid packet, now send the response
+            resp_packet = encode_resp_packet(packet)
+            (send_ok, status) = send_udp(device, client_info['connid'], handle, resp_packet)
+            if not send_ok:
+                logging.error(f"Error sending response: {status}")
+                stats['send_error'] = stats['send_error'] + 1
+
+            # Now update our local info
+            msg_number = msg_number + 1
+            handle = (handle + 1) % 100 # max value is 0xff, but we don't really care if we use all
 
 # The purpose of the server is to get iperf packets and echo them back. Basically in sequence:
 #    1. wait for a connection, then setup the echo processing
@@ -427,18 +547,18 @@ def do_server(device):
 
     # First we'll setup our connection.  We'll use port 5000 as our local port, and setup to accept
     # from all.
-    connid = connman.new_conn(device, -1, 0, SRV_UDP_PORT)
+    listen_connid = connman.new_conn(device, -1, 0, SRV_UDP_PORT)
 
     # We'll loop until we quit.
     while _G_running:
         if wait_for_connection(device, client_info):
             print("Got connection, doing PONG.")
             init_accounting(stats)
-            do_echos(device, connid, client_info, stats)
+            do_echos(device, client_info, stats)
             finalize_accounting(stats)
             print_stats(client_info, stats)
 
-    connman.del_connection(device, connid)
+    connman.del_connection(device, listen_connid)
 
 ####################################################################################################
 ##  Client stuff
@@ -490,16 +610,92 @@ def setup_connection(device, connid, session_info):
     if not send_ok:
         logging.error(f"Error sending setup_connection: {status}")
         return False
-    if not _G_wait_data.wait(START_TIMEOUT):
+    if not _G_wait_data.wait(PING_START_TIMEOUT):
         logging.error("Never received response from server, timeout.")
         return False
     session_info['start_response'] = _G_returned_data
     response = decode_packet(_G_returned_data['data'])
-    print(f"Got start response:\n{response}")
+    session_info['srv_id'] = response['sender_id']
+    print(f"Got start response from {session_info['srv_id']}:\n{response}")
     return True
+
+def check_pong(packet, raw_msg, num, srv_id, stats):
+    # for the client, we'll use 'rx_count' and 'rx_bytes' to keep track of the raw rx, ignoring
+    # any corruption
+    stats['rx_count'] = stats['rx_count'] + 1
+    stats['rx_bytes'] = stats['rx_bytes'] + len(raw_msg['data'])
+
+    # first, validate CRC is good!
+    if packet['crc'] != packet['computed_crc']:
+        stats['corrupted_count'] = stats['corrupted_count'] + 1
+        print("BAD CRC")
+        return (False,num)
+
+    # second, check type, direction, short id - if these are invalid, something's weird
+    if packet['type'] != MSG_TYPE_PONG or packet['direction'] != MSG_DIR_RESP or packet['sender_id'] != srv_id:
+        stats['corrupted_count'] = stats['corrupted_count'] + 1
+        print("BAD META")
+        return (False, num)
+
+    # check packet number
+    if packet['packet_num'] > num:
+        print(f"Skipped packet {num}")
+        # technically might still be a valid packet, so increment number
+        stats['skipped_count'] = stats['skipped_count'] + (packet['packet_num'] - num)
+    elif packet['packet_num'] != num:
+        print(f"BAD PACKET NUM; got {packet['packet_num']} expected {num}")
+        stats['corrupted_count'] = stats['corrupted_count'] + 1
+        return (False, packet['packet_num'])
+
+    # validate data
+    if packet['data'] != MSG_DATA:
+        print("BAD DATA")
+        stats['corrupted_count'] = stats['corrupted_count'] + 1
+        return (False, packet['packet_num'])
+
+    stats['resp_count'] = stats['resp_count'] + 1
+    stats['resp_bytes'] = stats['resp_bytes'] + len(raw_msg['data'])
+
+    return (True, packet['packet_num'])
 
 def do_iperfs(device, connid, session_info, stats):#pylint: disable=unused-argument
     logging.debug("    do_iperfs()")
+    packet_num = 1 # we're going to do a 1 base so we can distinguish between 0 and not.
+    handle = 1
+#     packet_records = {}
+    last_pong_id = 0
+    done = False
+    while not done and _G_running:
+        # We're going to do this purely synchronously, which might be slow. Send ping, wait for pong.
+        # It will be really slow if we don't get a packet back because our timeout is 5 seconds (see
+        # pp. 38-39 for why, should really be 10 seconds, but come on)
+        # TODO: threaded implementation for the RX with accounting for packets
+        ping_packet = encode_ping_packet(packet_num)
+        _G_wait_data.clear()
+        (send_ok, status) = send_udp(device, connid, handle, ping_packet)
+        if send_ok:
+            stats['send_count'] = stats['send_count'] + 1
+            stats['send_bytes'] = stats['send_bytes'] + len(ping_packet)
+            if _G_wait_data.wait(PING_RESP_TIMEOUT):
+                if id(_G_returned_data) == last_pong_id:
+                    print("\n\n######## SAME ID ########\n\n")
+                last_pong_id = id(_G_returned_data)
+                pong_msg = _G_returned_data
+                pong_packet = decode_packet(pong_msg['data'])
+                (ok_pong, packet_num) = check_pong(pong_packet, pong_msg, packet_num, session_info['srv_id'], stats) #pylint: disable=unused-variable
+        else:
+            logging.error(f"Error sending ping: {status}")
+            stats['send_error'] = stats['send_error'] + 1
+            time.sleep(1.0)
+
+        # increment our tracking data
+        packet_num = packet_num + 1
+        handle = (handle + 1) % 100 # max value is 0xff, but we don't really care if we use all
+
+        # end condition is either sent our max packets OR 60 seconds.
+        # TODO: make this configurable
+        if packet_num > MSG_MAX_PACKETS or time_elapsed(60, stats['start_time_ns']):
+            done = True
 
 def close_connection(device, connid, session_info):#pylint: disable=unused-argument
     logging.debug("    close_connection()")
@@ -515,6 +711,8 @@ def close_connection(device, connid, session_info):#pylint: disable=unused-argum
 #    3. clean up connection
 #    4. print accounting information
 def do_client(device):
+    global _G_running
+    _G_running = True
     stats = {}
     session_info = {}
 
@@ -522,12 +720,21 @@ def do_client(device):
     # and connect to the server at the address given
     connid = connman.new_conn(device, args.client, SRV_UDP_PORT, CLIENT_UDP_PORT)
 
-    if setup_connection(device, connid, session_info):
-        init_accounting(stats)
-        do_iperfs(device, connid, session_info, stats)
-        finalize_accounting(stats)
-        close_connection(device, connid, session_info)
-        print_stats(session_info, stats)
+    for tries in range(0, PING_START_RETRIES):
+        if not _G_running:
+            break
+        if setup_connection(device, connid, session_info):
+            init_accounting(stats)
+            do_iperfs(device, connid, session_info, stats)
+            finalize_accounting(stats)
+            close_connection(device, connid, session_info)
+            print_stats(session_info, stats)
+            break
+        else:
+            eom = "quitting."
+            if tries < PING_START_RETRIES - 1:
+                eom = "retrying."
+            print(f"Failed to contact server, {eom}")
 
     connman.del_connection(device, connid)
 
