@@ -51,11 +51,13 @@ class G3Rx():
             msg['sec_mode'] = up_header[2]
             msg['counter'] = up_header[3]
 
-            msg['data'] = self.device.read(msg['size'])
-            data_len = len(msg['data'])
-            if data_len < msg['size']:
-                logging.error(f"Short data. {data_len} bytes Rx of {msg['size']} bytes")
-                return None
+            size_left = msg['size']
+            data = b''
+            while size_left > 0:
+                data_rd = self.device.read(size_left)
+                data = data + data_rd
+                size_left = size_left - len(data_rd)
+            msg['data'] = data
 
             if msg['sec_mode'] > 0:
                 check_len = G3_TAG_LEN + G3_CRC_LEN
