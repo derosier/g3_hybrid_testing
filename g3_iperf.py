@@ -25,7 +25,7 @@ START_TIMEOUT = 60.0
 SRV_START_TIMEOUT = 0.5
 PING_START_TIMEOUT = 5.0
 PING_START_RETRIES = 10
-PING_RESP_TIMEOUT = 20.0
+PING_RESP_TIMEOUT = 5.0
 SRV_ECHO_TIMEOUT = 0.5
 
 SRV_UDP_PORT = 5000
@@ -48,10 +48,36 @@ MSG_MAX_PACKETS = 1000
 
 NS_IN_SEC = 1000000000
 
-# 400 bytes below
-# pg 36 shows the PHY MTU. We'll assume 2RS blocks and stay < the maxes for now
-MSG_LEN = 400
+# 1200 bytes below
+# There's a MTU limit for the UDP packets of 1270.
+MSG_LEN = 1200
 MSG_DATA = bytes.fromhex(
+"deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef"
+"00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000"
+"11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111"
+"22222222 22222222 22222222 22222222 22222222 22222222 22222222 22222222"
+"33333333 33333333 33333333 33333333 33333333 33333333 33333333 33333333"
+"44444444 44444444 44444444 44444444 44444444 44444444 44444444 44444444"
+"55555555 55555555 55555555 55555555 55555555 55555555 55555555 55555555"
+"66666666 66666666 66666666 66666666 66666666 66666666 66666666 66666666"
+"77777777 77777777 77777777 77777777 77777777 77777777 77777777 77777777"
+"88888888 88888888 88888888 88888888 88888888 88888888 88888888 88888888"
+"99999999 99999999 99999999 99999999 99999999 99999999 99999999 99999999"
+"aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa"
+"55555555 55555555 a5a5a5a5 ffffffff"
+"deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef"
+"00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000"
+"11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111"
+"22222222 22222222 22222222 22222222 22222222 22222222 22222222 22222222"
+"33333333 33333333 33333333 33333333 33333333 33333333 33333333 33333333"
+"44444444 44444444 44444444 44444444 44444444 44444444 44444444 44444444"
+"55555555 55555555 55555555 55555555 55555555 55555555 55555555 55555555"
+"66666666 66666666 66666666 66666666 66666666 66666666 66666666 66666666"
+"77777777 77777777 77777777 77777777 77777777 77777777 77777777 77777777"
+"88888888 88888888 88888888 88888888 88888888 88888888 88888888 88888888"
+"99999999 99999999 99999999 99999999 99999999 99999999 99999999 99999999"
+"aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa"
+"55555555 55555555 a5a5a5a5 ffffffff"
 "deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef"
 "00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000"
 "11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111"
@@ -322,6 +348,13 @@ def encode_resp_packet(ping_fields):
     fields['data'] = ping_fields['data']
     return encode_packet(fields)
 
+def encode_nack_packet(expected, packet_num):
+    fields = init_packet_fields()
+    fields['type'] = MSG_TYPE_NACK
+    fields['direction'] = expected
+    fields['packet_num'] = packet_num
+    return encode_packet(fields)
+
 def encode_done_packet(packets_sent):
     fields = init_packet_fields()
     fields['type'] = MSG_TYPE_DONE
@@ -348,8 +381,10 @@ def init_accounting(stats):
     stats['ping_bytes'] = 0
     stats['corrupted_count'] = 0
     stats['skipped_count'] = 0
+    stats['nacked_count'] = 0
     stats['send_error'] = 0
-    stats['end_time_ns'] = time.monotonic_ns()
+    stats['send_error'] = 0
+    stats['end_time_ns'] = 0
     # capturing start time should be the last thing we do.  I know we'll have a little overhead
     # due to python, but might as well minimize that.
     stats['start_time_ns'] = time.monotonic_ns()
@@ -383,6 +418,7 @@ def init_board_server(device):
     set_hook(srv_start_callback, ['G3BOOT-SRV-START'])
     set_hook(join_callback, ['G3BOOT-SRV-JOIN'])
     set_hook(data_rx_server_callback, ['G3UDP-DATA.Ind'])
+    set_hook(data_rx_server_callback, ['META-ERROR'])
 
     if args.noreset:
         return True
@@ -423,6 +459,9 @@ def wait_for_connection(device, client_info):
     while _G_running:
         if not _G_wait_data.wait(SRV_START_TIMEOUT):
             continue # timeout here is expected
+        if not _G_returned_data['valid_msg']:
+            print("Data Rx but invalid packet: {_G_returned_data['rx_status']}")
+            continue
         packet = decode_packet(_G_returned_data['data'])
         if valid_start_packet(packet):
             client_info['start_packet'] = _G_returned_data
@@ -475,6 +514,12 @@ def check_ping(packet, raw_msg, num, client_info, stats):
 
     return (True, packet['packet_num'])
 
+def send_nack(device, client_info, expected=MSG_TYPE_PING, packet_num=0xffffffff):
+    packet = encode_nack_packet(expected, packet_num)
+    (send_ok, status) = send_udp(device, client_info['connid'], 200, packet)
+    if not send_ok:
+        logging.error(f"Error sending NACK: {status}")
+
 def do_echos(device, client_info, stats): #pylint: disable=unused-argument
     logging.debug("    do_echos()")
     # So, we're in do_echos until we get a stop or a start packet. We'll use those as things to
@@ -491,6 +536,14 @@ def do_echos(device, client_info, stats): #pylint: disable=unused-argument
         # We are also going to assume packets can't come in faster than we process them.
         # TODO: queue packets!
         raw_msg = _G_returned_data
+        if not raw_msg['valid_msg']:
+            print(f"Data Rx but invalid packet: {raw_msg['rx_status']}")
+            send_nack(device, client_info)
+            stats['rx_count'] = stats['rx_count'] + 1
+            stats['rx_bytes'] = stats['rx_bytes'] + len(raw_msg['data'])
+            stats['corrupted_count'] = stats['corrupted_count'] + 1
+            continue
+
         packet = decode_packet(raw_msg['data'])
 
         # When we're in this mode, only accept from our client
@@ -512,6 +565,7 @@ def do_echos(device, client_info, stats): #pylint: disable=unused-argument
             # increase the number, anything that decreases it is considered corrupted.
         else:
             # what could it be?  Ignore and drop. Count it as invalid.
+            send_nack(device, client_info)
             stats['corrupted_count'] = stats['corrupted_count'] + 1
             continue
 
@@ -526,6 +580,9 @@ def do_echos(device, client_info, stats): #pylint: disable=unused-argument
             # Now update our local info
             msg_number = msg_number + 1
             handle = (handle + 1) % 100 # max value is 0xff, but we don't really care if we use all
+        else:
+            send_nack(device, client_info, packet_num=packet['packet_num'])
+
 
 # The purpose of the server is to get iperf packets and echo them back. Basically in sequence:
 #    1. wait for a connection, then setup the echo processing
@@ -568,6 +625,7 @@ def do_server(device):
 def init_board_client(device):
     set_hook(dev_start_callback, ['G3BOOT-DEV-START'])
     set_hook(data_rx_client_callback, ['G3UDP-DATA.Ind'])
+    set_hook(data_rx_client_callback, ['META-ERROR'])
 
     if args.noreset:
         return True
@@ -614,6 +672,9 @@ def setup_connection(device, connid, session_info):
     if not _G_wait_data.wait(PING_START_TIMEOUT):
         logging.error("Never received response from server, timeout.")
         return False
+    if not _G_returned_data['valid_msg']:
+        print("Data Rx but invalid packet: {_G_returned_data['rx_status']}")
+        return False
     session_info['start_response'] = _G_returned_data
     response = decode_packet(_G_returned_data['data'])
     session_info['srv_id'] = response['sender_id']
@@ -631,6 +692,11 @@ def check_pong(packet, raw_msg, num, srv_id, stats):
         stats['corrupted_count'] = stats['corrupted_count'] + 1
         print("BAD CRC")
         return (False,num)
+
+    # OK, it could be a NACK, handle that
+    if packet['type'] == MSG_TYPE_NACK:
+        stats['nacked_count'] = stats['nacked_count'] + 1
+        return (False, num)
 
     # second, check type, direction, short id - if these are invalid, something's weird
     if packet['type'] != MSG_TYPE_PONG or packet['direction'] != MSG_DIR_RESP or packet['sender_id'] != srv_id:
@@ -663,8 +729,6 @@ def do_iperfs(device, connid, session_info, stats):#pylint: disable=unused-argum
     logging.debug("    do_iperfs()")
     packet_num = 1 # we're going to do a 1 base so we can distinguish between 0 and not.
     handle = 1
-#     packet_records = {}
-    last_pong_id = 0
     done = False
     while not done and _G_running:
         # We're going to do this purely synchronously, which might be slow. Send ping, wait for pong.
@@ -678,12 +742,13 @@ def do_iperfs(device, connid, session_info, stats):#pylint: disable=unused-argum
             stats['send_count'] = stats['send_count'] + 1
             stats['send_bytes'] = stats['send_bytes'] + len(ping_packet)
             if _G_wait_data.wait(PING_RESP_TIMEOUT):
-                if id(_G_returned_data) == last_pong_id:
-                    print("\n\n######## SAME ID ########\n\n")
-                last_pong_id = id(_G_returned_data)
-                pong_msg = _G_returned_data
-                pong_packet = decode_packet(pong_msg['data'])
-                (ok_pong, packet_num) = check_pong(pong_packet, pong_msg, packet_num, session_info['srv_id'], stats) #pylint: disable=unused-variable
+                if not _G_returned_data['valid_msg']:
+                    print("Data Rx but invalid packet: {_G_returned_data['rx_status']}")
+                    # even in the invalid response case, we move on to the next one
+                else:
+                    pong_msg = _G_returned_data
+                    pong_packet = decode_packet(pong_msg['data'])
+                    (ok_pong, packet_num) = check_pong(pong_packet, pong_msg, packet_num, session_info['srv_id'], stats) #pylint: disable=unused-variable
         else:
             logging.error(f"Error sending ping: {status}")
             stats['send_error'] = stats['send_error'] + 1
@@ -731,11 +796,10 @@ def do_client(device):
             close_connection(device, connid, session_info)
             print_stats(session_info, stats)
             break
-        else:
-            eom = "quitting."
-            if tries < PING_START_RETRIES - 1:
-                eom = "retrying."
-            print(f"Failed to contact server, {eom}")
+        eom = "quitting."
+        if tries < PING_START_RETRIES - 1:
+            eom = "retrying."
+        print(f"Failed to contact server, {eom}")
 
     connman.del_connection(device, connid)
 
