@@ -37,12 +37,13 @@ class G3Rx():
 
     def get_msg(self):
         logging.debug("getMsg")
-        msg = {}
+        msg = {'cmd': 0xFD, 'rx_status': 'OK', 'size': 0, 'data': b'', 'crc':0, 'computed_crc':0xFFFF} # strange init, but useful patern for return
         if self.sync_msg():
             header = self.device.read(G3_HEADER_LEN)
             if len(header) != G3_HEADER_LEN:
                 logging.error(f"RX get_msg() Invalid header: {header.hex(' ')}")
-                return None
+                msg['rx_status'] = 'INVALID HEADER'
+                return msg
 
             up_header = struct.unpack("<BHBI", header)
             msg['cmd'] = up_header[0]
@@ -63,7 +64,8 @@ class G3Rx():
             check = self.device.read(check_len)
             if len(check) < check_len:
                 logging.error("Invalid check length")
-                return None
+                msg['rx_status'] = 'INVALID CHECK'
+                return msg
             if msg['sec_mode'] > 0:
                 up_check = struct.unpack("<QH", check)
                 msg['sec_tag'] = up_check[0]
@@ -79,8 +81,7 @@ class G3Rx():
             computed_crc = crc16.bit_by_bit_fast(syncro + header + msg['data'] + sec_tag)
             logging.debug(f"CRC computed {computed_crc:04x}, CRC Rx {msg['crc']:04x}")
             if computed_crc != msg['crc']:
-                return None
-
+                msg['rx_status'] = 'BAD CRC'
             return msg
         else:
             return None

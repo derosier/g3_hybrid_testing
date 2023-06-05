@@ -54,6 +54,7 @@ g3_comms.g3_msgs.msg_decode_list.append(g3_resp.UDPConnGet())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.G3EchoResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.G3EchoRepInd())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.G3EchoReqInd())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.MetaError())
 
 # Instantiate a global instance of every command we might want to send
 g3_comms.g3_msgs.msg_cmds['hwreset'] = g3_cmd.HWResetCmd(subparsers)

@@ -9,9 +9,10 @@ class G3Resp():
     g3_name = 'UNKNOWN'
     def __init__(self):
         self.callbacks = [] # List of tupples, (callback, context)
-        self.raw_msg = b''
+        self.raw_msg = {}
         self.raw_fields = []
         self.fields = {}
+        self.valid_msg = False
 
     def decode(self, msg):
         self.raw_msg = msg
@@ -32,8 +33,14 @@ class G3Resp():
             logging.warning(f'{self.g3_name} can not find callback {context}.{callback}')
 
     def call_hook(self):
+        fields = {}
+        if not self.valid_msg:
+            fields = self.raw_msg
+        else:
+            fields = self.fields
+        fields['valid_msg'] = self.valid_msg
         for callback in self.callbacks:
-            callback[0](callback[1], self.g3_name, self.fields)
+            callback[0](callback[1], self.g3_name, fields)
 
 # Below responses are defined in the Datasheet AN5603 from ST.
 
@@ -739,3 +746,12 @@ class G3EchoReqInd(G3Resp):
 
     def pr_decode(self):
         print(f'Reply {self.g3_name}: {self.fields}')
+
+class MetaError(G3Resp):
+    g3_id = 0xFD
+    g3_name = 'META-ERROR'
+    def decode(self, msg):
+        pass
+
+    def pr_decode(self):
+        pass

@@ -10,8 +10,12 @@ def decodeMsg(msg):
     for decoder in msg_decode_list:
         if msg['cmd'] == decoder.g3_id:
             logging.debug("Found supported message")
-            decoder.decode(msg)
-            decoder.pr_decode()
+            decoder.valid_msg = msg['rx_status'] == 'OK'
+            if decoder.valid_msg:
+                decoder.decode(msg)
+                decoder.pr_decode()
+            else:
+                decoder.raw_msg = msg
             decoder.call_hook()
             break
     else: # no break

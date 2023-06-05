@@ -93,6 +93,7 @@ g3_comms.g3_msgs.msg_decode_list.append(g3_resp.UDPData())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.UDPDataInd())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.UDPConnSet())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.UDPConnGet())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.MetaError())
 
 connman = g3_comms.g3_connman.ConnMan(g3_comms.g3_msgs.msg_decode_list)
 
