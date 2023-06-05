@@ -44,7 +44,9 @@ MSG_DIR_NONE = 0x00
 MSG_DIR_OUT = 0x01
 MSG_DIR_RESP = 0x02
 
+PING_MAX_TIME = 60
 MSG_MAX_PACKETS = 1000
+DONE_COUNT_PACKETS = 3
 
 NS_IN_SEC = 1000000000
 
@@ -327,7 +329,18 @@ def encode_start_reponse(num_packets):
     return encode_packet(fields)
 
 def valid_start_packet(packet):
-    print(f"    valid_start_packet({packet})")
+    logging.debug(f"    valid_start_packet({packet})")
+    # first, validate CRC is good!
+    if packet['crc'] != packet['computed_crc']:
+        return False
+
+    # second, direction
+    if packet['direction'] != MSG_DIR_OUT:
+        return False
+
+    if packet['type'] != MSG_TYPE_START:
+        return False
+
     return True
 
 def encode_ping_packet(packet_num):
@@ -401,12 +414,42 @@ def time_elapsed(t, start):
     elapsed = (time.monotonic_ns() - start)/NS_IN_SEC
     return t <= elapsed
 
-def print_stats(client_info, stats):
-    print("iperf session results")
-    print(f"Client:\n\t{client_info}")
-    print(f"Stats:\n\t{stats}")
+def print_stats(side, client_info, stats):
     elapsed_s = (stats['end_time_ns'] - stats['start_time_ns'])/NS_IN_SEC
-    print(f"Elapsed time: {elapsed_s:.3f}")
+    print("======================================================================================")
+    if side == MSG_DIR_OUT: # client
+        print(f"iperf session results round-trip to server at {client_info['srv_id']}")
+        print(f"Sent: {stats['send_count']}")
+        print(f"Responses: {stats['resp_count']}")
+        print(f"Nacked: {stats['nacked_count']}")
+        total_bytes = stats['send_bytes'] + stats['rx_bytes']
+        valid_bytes = stats['send_bytes'] + stats['resp_bytes']
+        print(f"Round-trip bytes: {total_bytes}")
+        print(f"Valid bytes: {valid_bytes}")
+        total_bps = total_bytes/elapsed_s
+        valid_bps = valid_bytes/elapsed_s
+        print(f"Time: {elapsed_s}")
+        lost = stats['send_count'] - stats['resp_count']
+        print(f"Lost packets: {lost}")
+        print(f"Total throughput bytes-per-second: {total_bps}")
+        print(f"Valid throughput bytes-per-second: {valid_bps}")
+    else: # server
+        print(f"iperf session results from client at {client_info['addr']}")
+        print(f"Arrived count: {stats['ping_count']}")
+        print(f"Corrupted: {stats['corrupted_count']}")
+        print(f"Skipped: {stats['skipped_count']}")
+        total_bytes = stats['rx_bytes']
+        valid_bytes = stats['ping_bytes']
+        print(f"Rx bytes: {total_bytes}")
+        print(f"Valid bytes: {valid_bytes}")
+        total_bps = total_bytes/elapsed_s
+        valid_bps = valid_bytes/elapsed_s
+        print(f"Time: {elapsed_s:.3f}")
+        lost = stats['send_count'] - stats['ping_count']
+        print(f"Lost packets: {lost}")
+        print(f"Total throughput bytes-per-second: {total_bps:.3f}")
+        print(f"Valid throughput bytes-per-second: {valid_bps:.3f}")
+    print("======================================================================================")
 
 ####################################################################################################
 ##  Server stuff
@@ -455,8 +498,8 @@ def init_board_server(device):
 
 def wait_for_connection(device, client_info):
     print("Waiting for connection...")
-    _G_wait_data.clear()
     while _G_running:
+        _G_wait_data.clear()
         if not _G_wait_data.wait(SRV_START_TIMEOUT):
             continue # timeout here is expected
         if not _G_returned_data['valid_msg']:
@@ -520,7 +563,7 @@ def send_nack(device, client_info, expected=MSG_TYPE_PING, packet_num=0xffffffff
     if not send_ok:
         logging.error(f"Error sending NACK: {status}")
 
-def do_echos(device, client_info, stats): #pylint: disable=unused-argument
+def do_echos(device, client_info, stats):
     logging.debug("    do_echos()")
     # So, we're in do_echos until we get a stop or a start packet. We'll use those as things to
     # kick us out of this mode, but otherwise we just rx and then echo packets.
@@ -551,14 +594,18 @@ def do_echos(device, client_info, stats): #pylint: disable=unused-argument
             # just discard this right now
             continue
 
-        stats['rx_count'] = stats['rx_count'] + 1
         stats['rx_bytes'] = stats['rx_bytes'] + len(raw_msg['data'])
+        stats['rx_count'] = stats['rx_count'] + 1
 
         # Now, figure out the type and do the right thing; We'll assume this is a valid bit of data
-        if (packet['type'] == MSG_TYPE_START or
-            packet['type'] == MSG_TYPE_DONE):
+        if packet['type'] == MSG_TYPE_START:
             done = True
             continue
+        if packet['type'] == MSG_TYPE_DONE:
+            stats['send_count'] = packet['packet_num']
+            done = True
+            continue
+
         if packet['type'] == MSG_TYPE_PING:
             (ping_ok, msg_number) = check_ping(packet, raw_msg, msg_number, client_info, stats)
             # Note in the case of skips, we update msg_number to the new packet number. We only
@@ -613,8 +660,9 @@ def do_server(device):
             print("Got connection, doing PONG.")
             init_accounting(stats)
             do_echos(device, client_info, stats)
+            connman.del_connection(device, client_info['connid'])
             finalize_accounting(stats)
-            print_stats(client_info, stats)
+            print_stats(MSG_DIR_RESP, client_info, stats)
 
     connman.del_connection(device, listen_connid)
 
@@ -758,13 +806,21 @@ def do_iperfs(device, connid, session_info, stats):#pylint: disable=unused-argum
         packet_num = packet_num + 1
         handle = (handle + 1) % 100 # max value is 0xff, but we don't really care if we use all
 
-        # end condition is either sent our max packets OR 60 seconds.
+        # end condition is either sent our max packets OR PING_MAX_TIME seconds.
         # TODO: make this configurable
-        if packet_num > MSG_MAX_PACKETS or time_elapsed(60, stats['start_time_ns']):
+        if packet_num > MSG_MAX_PACKETS or time_elapsed(PING_MAX_TIME, stats['start_time_ns']):
             done = True
 
-def close_connection(device, connid, session_info):#pylint: disable=unused-argument
+# We're going to make sure the server receives this, but not bother having it respond.  Some 10% or
+# so packets don't arrive, so just send this several times.
+def close_connection(device, connid, sent_count):
     logging.debug("    close_connection()")
+    done_packet = encode_done_packet(sent_count)
+    done_count = 0
+    while done_count < DONE_COUNT_PACKETS:
+        (send_ok, _) = send_udp(device, connid, 1, done_packet)
+        if send_ok:
+            done_count = done_count + 1
 
 # The purpose of the client is to send iperf packets and rx the response back from the server.
 # Basically in sequence:
@@ -793,8 +849,8 @@ def do_client(device):
             init_accounting(stats)
             do_iperfs(device, connid, session_info, stats)
             finalize_accounting(stats)
-            close_connection(device, connid, session_info)
-            print_stats(session_info, stats)
+            close_connection(device, connid, stats['send_count'])
+            print_stats(MSG_DIR_OUT, session_info, stats)
             break
         eom = "quitting."
         if tries < PING_START_RETRIES - 1:
