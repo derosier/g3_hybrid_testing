@@ -5,9 +5,9 @@ import struct
 import g3_comms.g3_msgs
 from g3_comms.g3_crc import crc16
 
-G3_HEADER_LEN = 8 # Not including sync bytes
-G3_TAG_LEN = 8
-G3_CRC_LEN = 2
+G3_HEADER_FMT = "<BHBI"
+G3_TAG_FOOTER_FMT = "<QH"
+G3_NOTAG_FOOTER_FMT = "<H"
 
 class G3Rx():
     # class quit variable will cause any/all instances to quit
@@ -39,13 +39,14 @@ class G3Rx():
         logging.debug("getMsg")
         msg = {'cmd': 0xFD, 'rx_status': 'OK', 'size': 0, 'data': b'', 'crc':0, 'computed_crc':0xFFFF} # strange init, but useful patern for return
         if self.sync_msg():
-            header = self.device.read(G3_HEADER_LEN)
-            if len(header) != G3_HEADER_LEN:
-                logging.error(f"RX get_msg() Invalid header: {header.hex(' ')}")
-                msg['rx_status'] = 'INVALID HEADER'
-                return msg
+            size_left = struct.calcsize(G3_HEADER_FMT)
+            header = b''
+            while size_left > 0:
+                data_rd = self.device.read(size_left)
+                header = header + data_rd
+                size_left = size_left - len(data_rd)
 
-            up_header = struct.unpack("<BHBI", header)
+            up_header = struct.unpack(G3_HEADER_FMT, header)
             msg['cmd'] = up_header[0]
             msg['size'] = up_header[1]
             msg['sec_mode'] = up_header[2]
@@ -60,21 +61,22 @@ class G3Rx():
             msg['data'] = data
 
             if msg['sec_mode'] > 0:
-                check_len = G3_TAG_LEN + G3_CRC_LEN
+                size_left = struct.calcsize(G3_TAG_FOOTER_FMT)
             else:
-                check_len = G3_CRC_LEN
-            check = self.device.read(check_len)
-            if len(check) < check_len:
-                logging.error("Invalid check length")
-                msg['rx_status'] = 'INVALID CHECK'
-                return msg
+                size_left = struct.calcsize(G3_NOTAG_FOOTER_FMT)
+            check = b''
+            while size_left > 0:
+                data_rd = self.device.read(size_left)
+                check = check + data_rd
+                size_left = size_left - len(data_rd)
+
             if msg['sec_mode'] > 0:
-                up_check = struct.unpack("<QH", check)
+                up_check = struct.unpack(G3_TAG_FOOTER_FMT, check)
                 msg['sec_tag'] = up_check[0]
                 msg['crc'] = up_check[1]
                 sec_tag = up_check[0]
             else:
-                up_check = struct.unpack("<H", check)
+                up_check = struct.unpack(G3_NOTAG_FOOTER_FMT, check)
                 msg['crc'] = up_check[0]
                 msg['sec_tag'] = 0
                 sec_tag = b''
@@ -92,7 +94,6 @@ class G3Rx():
         while not G3Rx._quit:
             msg = self.get_msg()
             g3_comms.g3_msgs.decodeMsg(msg)
-            time.sleep(0.1)
 
     def quit(): # pylint: disable=no-method-argument
         G3Rx._quit = True
