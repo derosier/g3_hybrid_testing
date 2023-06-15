@@ -6,6 +6,8 @@ import threading
 import signal
 import struct
 import time
+import os
+import json
 
 import serial
 
@@ -104,6 +106,7 @@ parser.add_argument("-n", "--noreset", action="store_true", help="Assume properl
 group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument("-s", "--server", action="store_true", help="Run as a server.")
 group.add_argument("-c", "--client", type=int, help="Run as a client and target the given short address.")
+parser.add_argument("-a", "--activity", help="Unique name for experiment with same metadata.")
 
 # Instantiate a global instance of every response we want to process on Rx
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
@@ -413,6 +416,53 @@ def finalize_accounting(stats):
 def time_elapsed(t, start):
     elapsed = (time.monotonic_ns() - start)/NS_IN_SEC
     return t <= elapsed
+
+def record_stats(activity_name, client_info, stats):
+    # Create data dict to export
+    elapsed_s = (stats['end_time_ns'] - stats['start_time_ns'])/NS_IN_SEC
+    total_bytes = stats['send_bytes'] + stats['rx_bytes']
+    valid_bytes = stats['send_bytes'] + stats['resp_bytes']
+    total_bps = total_bytes/elapsed_s
+    valid_bps = valid_bytes/elapsed_s
+    lost = stats['send_count'] - stats['resp_count']
+    # NOTE: We need to record this as well, but it doesn't seem to be recorded
+    snr = "Unknown"
+
+    results = {}
+    results["elapsed_s"] = elapsed_s
+    results["total_bytes"] = total_bytes
+    results["valid_bytes"] = valid_bytes
+    results["total_bps"] = total_bps
+    results["valid_bps"] = valid_bps
+    results["lost_packets"] = lost
+    results["srv_id"] = client_info['srv_id']
+    results["addr"] = client_info['addr']
+    results["send_count"] = stats['send_count']
+    results["nacked_count"] = stats['nacked_count']
+    results["ping_count"] = stats['ping_count']
+    results["corrupted_count"] = stats['corrupted_count']
+    results["skipped_count"] = stats['skipped_count']
+    results["rx_bytes"] = stats['rx_bytes']
+    results["ping_bytes"] = stats['ping_bytes']
+    results["snr"] = snr   # We will need this eventually
+
+    # Check for existing results json file
+    # If one does NOT exist, create one
+    file_name = "temp/"+activity_name+"_results.json"
+    if not os.path.isfile(file_name):
+        print("\nCreating results file {" + file_name + "}...")
+        with open(file_name,"w", encoding='UTF-8') as f:
+            json.dump([results], f, indent=2)
+    # If one does exist, read it, append to it, then write it back
+    #   Provide warning if it does exist to make sure we want to append
+    else:
+        print("\nExisting results file found {" + file_name + "}!")
+        print("\n\tNew results will be appended...")
+        with open(file_name, "r", encoding='UTF-8') as f:
+            prior_results = json.load(f)
+        prior_results.append(results)
+        with open(file_name,"w", encoding='UTF-8') as f:
+            json.dump(prior_results, f, indent=2)
 
 def print_stats(side, client_info, stats):
     elapsed_s = (stats['end_time_ns'] - stats['start_time_ns'])/NS_IN_SEC
@@ -851,6 +901,8 @@ def do_client(device):
             finalize_accounting(stats)
             close_connection(device, connid, stats['send_count'])
             print_stats(MSG_DIR_OUT, session_info, stats)
+            if not args.activity is None:
+                record_stats(args.activity, session_info, stats)
             break
         eom = "quitting."
         if tries < PING_START_RETRIES - 1:
@@ -870,6 +922,20 @@ def do_client(device):
 def main():
     logging.debug("*** Starting iperf")
     logging.debug(f"args: {args}")
+
+    # Give user a warning about failures to log data
+    if args.client and args.activity is None:
+        logging.warning("     Note: The results from this will not be logged")
+
+    # Check for existence of metadata for logging (if applicable)
+    if args.client and not args.activity is None:
+        # Check to make sure that there exists a metadata file created previously
+        # using the `chronos_tools_cli.py` script prior to running this
+        file_name = "temp/"+args.activity+"_metadata.json"
+        if not os.path.isfile(file_name):
+            logging.error("\n\tERROR: Cannot log data without matching metadata!"
+                  "\n\tPlease run the 'chronos_tools_cli.py' script to create the metadata file"
+                  "\n\tfor the activity named {%s}",args.activity)
 
     signal.signal(signal.SIGINT, shutdown_handler)
 
