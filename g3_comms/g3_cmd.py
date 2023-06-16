@@ -83,6 +83,26 @@ class HWResetCmd(G3Cmd):
         logging.debug("HOSTIF-HWRESET.Requst has no data to encode")
         return b''
 
+# Datasheet pg 50
+class UARTBaudSetCmd(G3Cmd):
+    g3_id = 0x06
+    g3_name = 'HOSTIF-BAUDRATESET'
+    rx_msgs = ['HOSTIF-BAUDRATESET']
+
+    HI_BAUD_DEFAULT = 921600
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('speed', help=f'Change the UART baudrate, defaults to {self.HI_BAUD_DEFAULT}')
+        parser.add_argument('speed', type=int, default=self.HI_BAUD_DEFAULT, help='New UART baud rate')
+        return parser
+
+    def parse_args(self, args):
+        self.fields['speed'] = args.speed
+
+    def encode_cmd(self):
+        raw = struct.pack("<I", self.fields['speed'])
+        return raw
+
 # Datasheet pg 55
 class DBGToolCmd(G3Cmd):
     g3_id = 0x14

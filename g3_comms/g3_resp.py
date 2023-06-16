@@ -59,6 +59,20 @@ class HWResetResp(G3Resp):
         else:
             self.fields['security_code'] = 'none'
 
+# Datasheet pg 50
+class UARTBaudSetResp(G3Resp):
+    g3_id = 0x07
+    g3_name = 'HOSTIF-BAUDRATESET'
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from("<BI", msg['data'], 1)
+        self.raw_fields = raw_fields
+        try:
+            self.fields['status'] = G3C.G3_RESULTS[raw_fields[0]]
+        except KeyError:
+            logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
+        self.fields['speed'] = raw_fields[1]
+
 # Datasheet pg 56
 class DBGToolResp(G3Resp):
     g3_id = 0x15
