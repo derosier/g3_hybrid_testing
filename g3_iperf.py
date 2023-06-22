@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint: disable=too-many-lines
 
 import logging
 import argparse
@@ -21,6 +22,7 @@ from g3_comms.g3_crc import crc16
 
 default_port="/dev/ttyACM0"
 default_baudrate=115200
+default_new_baudrate=921600
 
 # Measured 20 seconds for coordinator to start, and 25 seconds for device to start on a clean network
 START_TIMEOUT = 60.0
@@ -103,6 +105,7 @@ parser.add_argument("-b", "--baud", default=default_baudrate, help=f"Serial port
 parser.add_argument("-V", "--verbosity", default="WARNING", help="Logging verbosity. [CRITICAL, ERROR, WARNING, INFO, DEBUG]")
 parser.add_argument("-t", "--timeout", type=int, default=5, help="Command wait for response timeout, default 5 seconds.")
 parser.add_argument("-n", "--noreset", action="store_true", help="Assume properly running, don't issue HW and SW resets. Saves 30 seconds on start.")
+parser.add_argument("--speed", type=int, default=default_new_baudrate, help=f"Post-init serial port baud rate, default {default_new_baudrate}")
 group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument("-s", "--server", action="store_true", help="Run as a server.")
 group.add_argument("-c", "--client", type=int, help="Run as a client and target the given short address.")
@@ -110,6 +113,7 @@ parser.add_argument("-a", "--activity", help="Unique name for experiment with sa
 
 # Instantiate a global instance of every response we want to process on Rx
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.UARTBaudSetResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.DBGToolResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.G3GetResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.G3SetResp())
@@ -238,6 +242,21 @@ def hw_reset(device):
         logging.error("HOSTIF-HWRESET unsuccessful.")
         return False
     return True
+
+def set_speed(device, speed):
+    cmd_args = argparse.Namespace()
+    cmd_args.speed = speed
+    speed_cmd = g3_cmd.UARTBaudSetCmd()
+    speed_cmd.parse_args(cmd_args)
+    speed_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
+    fields = g3_comms.g3_tx.send_and_wait(device, speed_cmd)
+    speed_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
+    if not check_status_ok(fields):
+        logging.error("HOSTIF-BAUDRATESET unsuccessful.")
+        return (False, fields['status'])
+    device.baudrate = speed
+    print(f"Serial port baud rate updated to {speed}")
+    return (True, fields['status'])
 
 def send_udp(device, connid, handle, packet):
     cmd_args = argparse.Namespace()
@@ -520,6 +539,11 @@ def init_board_server(device):
     if not hw_reset(device):
         return False
 
+    # 2.5 CHANGE UART BAUDRATE
+    (send_ok, _) = set_speed(device, args.speed)
+    if not send_ok:
+        return False
+
     # 3. SWRESET to coordinator
     _G_wait_srv_start.clear()
     cmd_args = argparse.Namespace()
@@ -730,6 +754,12 @@ def init_board_client(device):
 
     # 2. HWRESET
     if not hw_reset(device):
+        return False
+
+
+    # 2.5 CHANGE UART BAUDRATE
+    (send_ok, _) = set_speed(device, args.speed)
+    if not send_ok:
         return False
 
     # 3. SWRESET to coordinator
