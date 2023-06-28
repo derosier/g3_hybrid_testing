@@ -73,6 +73,9 @@ class UARTBaudSetResp(G3Resp):
             logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
         self.fields['speed'] = raw_fields[1]
 
+    def pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
 # Datasheet pg 56
 class DBGToolResp(G3Resp):
     g3_id = 0x15

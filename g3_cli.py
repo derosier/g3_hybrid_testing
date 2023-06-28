@@ -59,7 +59,7 @@ g3_comms.g3_msgs.msg_decode_list.append(g3_resp.MetaError())
 
 # Instantiate a global instance of every command we might want to send
 g3_comms.g3_msgs.msg_cmds['hwreset'] = g3_cmd.HWResetCmd(subparsers)
-g3_comms.g3_msgs.msg_cmds['baudrate'] = g3_cmd.UARTBaudSetCmd(subparsers)
+g3_comms.g3_msgs.msg_cmds['speed'] = g3_cmd.UARTBaudSetCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['dbgtool'] = g3_cmd.DBGToolCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['get'] = g3_cmd.G3GetCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['set'] = g3_cmd.G3SetCmd(subparsers)
@@ -114,6 +114,8 @@ def do_g3_cmd(device, dryrun):
             else:
                 g3_comms.g3_tx.send_and_wait(device, g3_comms.g3_msgs.msg_cmds[args.cmd], timeout=args.timeout)
             g3_comms.g3_msgs.msg_cmds[args.cmd].clean_rx(g3_comms.g3_msgs.msg_decode_list)
+            #if args.cmd == "speed":
+                #device.baudrate = args.speed
     except KeyError:
         print(f"Unrecognized command {args.cmd}. Exiting.")
     if not args.dump:
