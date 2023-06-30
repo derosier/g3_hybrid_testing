@@ -114,8 +114,8 @@ def do_g3_cmd(device, dryrun):
             else:
                 g3_comms.g3_tx.send_and_wait(device, g3_comms.g3_msgs.msg_cmds[args.cmd], timeout=args.timeout)
             g3_comms.g3_msgs.msg_cmds[args.cmd].clean_rx(g3_comms.g3_msgs.msg_decode_list)
-            #if args.cmd == "speed":
-                #device.baudrate = args.speed
+            if args.cmd == "speed":
+                device.baudrate = args.speed
     except KeyError:
         print(f"Unrecognized command {args.cmd}. Exiting.")
     if not args.dump:
