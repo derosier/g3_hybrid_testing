@@ -1022,6 +1022,7 @@ def main():
             exit_clean()
 
     # Cleanup and quit
+    set_speed(device, baudrate) # restore to whatever speed we started with
     g3_comms.g3_rx.G3Rx.quit()
     rx_thread.join()
 
