@@ -143,7 +143,6 @@ logging.basicConfig(format=lineformat, level=args.verbosity.upper(),
 _G_running = False
 def exit_clean():
     global _G_running
-    g3_comms.g3_rx.G3Rx.quit()
     _G_running = False
 
 def shutdown_handler(signum, frame): # pylint: disable=unused-argument
@@ -1023,6 +1022,7 @@ def main():
             exit_clean()
 
     # Cleanup and quit
+    g3_comms.g3_rx.G3Rx.quit()
     rx_thread.join()
 
 if __name__ == "__main__":
