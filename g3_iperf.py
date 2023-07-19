@@ -99,6 +99,8 @@ MSG_DATA = bytes.fromhex(
 "55555555 55555555 a5a5a5a5 ffffffff"
 )
 
+print_progress = False
+
 parser = argparse.ArgumentParser()
 parser.add_argument("-p", "--port", default=default_port, help=f"Serial port, default {default_port}")
 parser.add_argument("-b", "--baud", default=default_baudrate, help=f"Serial port baud rate, default {default_baudrate}. GUI sniffer uses 460800 baud.")
@@ -174,7 +176,7 @@ _G_wait_srv_start = threading.Event()
 _G_returned_srv_start = {}
 def srv_start_callback(_, name, fields):
     global _G_returned_srv_start
-    print(f"srv_start_callback({_}, {name}, {fields})")
+    logging.info(f"srv_start_callback({_}, {name}, {fields})")
     _G_returned_srv_start = fields
     _G_wait_srv_start.set()
 
@@ -184,7 +186,7 @@ _G_wait_dev_start = threading.Event()
 _G_returned_dev_start = {}
 def dev_start_callback(_, name, fields):
     global _G_returned_dev_start
-    print(f"dev_start_callback({_}, {name}, {fields})")
+    logging.info(f"dev_start_callback({_}, {name}, {fields})")
     _G_returned_dev_start = fields
     _G_wait_dev_start.set()
 
@@ -192,9 +194,8 @@ def dev_start_callback(_, name, fields):
 _G_wait_data = threading.Event()
 _G_returned_data = {}
 # Reply G3UDP-DATA.Ind: {'error_code': 0, 'prevhop_addrmode': 2, 'prevhop_pan': 30749, 'prevhop_addr': 48, 'lqi': 233, 'phasediff': 6, 'modtype': 'Robust', 'modscheme': 'Differential', 'tonemap': b'\xff\xff\xff', 'bc0num': 0, 'bc0': [], 'prevhop_media': 0, 'conn_id': 1, 'src_addr': b'\xfe\x80\x00\x00\x00\x00\x00\x00x\x1d\x00\xff\xfe\x00\x000', 'src_port': 5000, 'dest_addr': b'\xfe\x80\x00\x00\x00\x00\x00\x00x\x1d\x00\xff\xfe\x00\x00\x01', 'dest_port': 5001, 'data_len': 6, 'data': b'hello!'}
-def data_rx_server_callback(_, name, fields):
+def data_rx_server_callback(_, name, fields): # pylint: disable=unused-argument
     global _G_returned_data
-    print(f"data_rx_server_callback({_}, {name}, {fields})")
     _G_returned_data = fields
     _G_wait_data.set()
 
@@ -206,9 +207,8 @@ def data_rx_server_callback(_, name, fields):
 #5000, 'dest_addr':
 #b'\xfe\x80\x00\x00\x00\x00\x00\x00x\x1d\x00\xff\xfe\x00\x00\x01', 'dest_port':
 #5001, 'data_len': 6, 'data': b'hello!'}
-def data_rx_client_callback(_, name, fields):
+def data_rx_client_callback(_, name, fields): # pylint: disable=unused-argument
     global _G_returned_data
-    print(f"data_rx_client_callback({_}, {name}, {fields})")
     _G_returned_data = fields
     _G_wait_data.set()
 
@@ -255,19 +255,21 @@ def set_speed(device, speed):
         logging.error("HOSTIF-BAUDRATESET unsuccessful.")
         return (False, fields['status'])
     device.baudrate = speed
-    print(f"Serial port baud rate updated to {speed}")
+    logging.warning(f"Serial port baud rate updated to {speed}")
     return (True, fields['status'])
 
 def send_udp(device, connid, handle, packet):
     cmd_args = argparse.Namespace()
-    print(f"send_udp to connection {connid}")
+    logging.debug(f"send_udp to connection {connid}")
+    if print_progress:
+        print(f'{connid}', end='', flush=True)
     cmd_args.connid = connid
     cmd_args.handle = handle
     cmd_args.bindata = packet
     udp_cmd = g3_cmd.UDPData()
     udp_cmd.parse_args(cmd_args)
     udp_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
-    fields = g3_comms.g3_tx.send_and_wait(device, udp_cmd, timeout=20)
+    fields = g3_comms.g3_tx.send_and_wait(device, udp_cmd, timeout=5)
     udp_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
     if not check_status_ok(fields):
         logging.error("G3UDP-DATA unsuccessful.")
@@ -317,7 +319,6 @@ def encode_packet(fields):
     return complete_msg
 
 def decode_packet(data):
-    print(f"@@@ decode packet: {data.hex()}")
     fields = {}
     fmt = "<BBHIIH"
     header = struct.unpack_from(fmt, data)
@@ -568,6 +569,8 @@ def init_board_server(device):
         logging.error("G3BOOT-SRV-START unsuccessful.")
         return False
 
+    print("Server start was successful.")
+
     return True
 
 def wait_for_connection(device, client_info):
@@ -577,7 +580,7 @@ def wait_for_connection(device, client_info):
         if not _G_wait_data.wait(SRV_START_TIMEOUT):
             continue # timeout here is expected
         if not _G_returned_data['valid_msg']:
-            print("Data Rx but invalid packet: {_G_returned_data['rx_status']}")
+            logging.error("Data Rx but invalid packet: {_G_returned_data['rx_status']}")
             continue
         packet = decode_packet(_G_returned_data['data'])
         if valid_start_packet(packet):
@@ -722,6 +725,7 @@ def do_server(device):
 # Reply G3BOOT-SRV-GETPSK: {'error_code': 0, 'e_addr': 12336387418442792960, 'idp_len': 8, 'idp': (12336387418442792960, 8, b'\x00\x80\xe1\xff\xfe\xa63\xab\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')}
 # Reply G3BOOT-SRV-JOIN: {'error_code': 0, 'e_addr': 12336387418442792960, 'short_id': 1}
     global _G_running
+    global print_progress
     _G_running = True
     stats = {}
     client_info = {}
@@ -736,8 +740,11 @@ def do_server(device):
         if wait_for_connection(device, client_info):
             print("Got connection, doing PONG.")
             init_accounting(stats)
+            print_progress = True
             do_echos(device, client_info, stats)
+            print_progress = False
             connman.del_connection(device, client_info['connid'])
+            print('') # get a newline because we've been printing out the rx'd packet connection number to show progress
             finalize_accounting(stats)
             print_stats(MSG_DIR_RESP, client_info, stats)
 
@@ -788,6 +795,8 @@ def init_board_client(device):
         logging.error("G3BOOT-DEV-START unsuccessful.")
         return False
 
+    print("Client start was successful.")
+
     return True
 
 # To setup a connection, we basically need to send a message to the server.  We don't start sending
@@ -809,7 +818,8 @@ def setup_connection(device, connid, session_info):
     session_info['start_response'] = _G_returned_data
     response = decode_packet(_G_returned_data['data'])
     session_info['srv_id'] = response['sender_id']
-    print(f"Got start response from {session_info['srv_id']}:\n{response}")
+    logging.debug(f"Got start response from {session_info['srv_id']}:\n{response}")
+    print(f"Successfully setup connection with server at {session_info['srv_id']}")
     return True
 
 def check_pong(packet, raw_msg, num, srv_id, stats):
@@ -917,6 +927,7 @@ def close_connection(device, connid, sent_count):
 #    4. print accounting information
 def do_client(device):
     global _G_running
+    global print_progress
     _G_running = True
     stats = {}
     session_info = {}
@@ -931,7 +942,10 @@ def do_client(device):
             break
         if setup_connection(device, connid, session_info):
             init_accounting(stats)
+            print_progress = True
             do_iperfs(device, connid, session_info, stats)
+            print_progress = False
+            print('') # get a newline because we've been printing out the rx'd packet connection number to show progress
             finalize_accounting(stats)
             close_connection(device, connid, stats['send_count'])
             print_stats(MSG_DIR_OUT, session_info, stats)
