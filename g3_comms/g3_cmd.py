@@ -162,7 +162,7 @@ class G3SetCmd(G3Cmd):
         self.fields['id'] = args.id
         self.fields['index'] = args.index
         self.fields['data'] = g3_comms.g3_msgs.parse_data(args.data)
-        print(self.fields)
+        logging.debug(self.fields)
 
     def encode_cmd(self):
         length = len(self.fields['data'])
@@ -246,7 +246,7 @@ class PhyDataCmd(G3Cmd):
         self.fields['dt'] = 1
         self.fields['twosrsblock'] = 0
         self.fields['data'] = g3_comms.g3_msgs.parse_data(args.data)
-        print(self.fields)
+        logging.debug(self.fields)
 
     def encode_cmd(self):
         length = len(self.fields['data'])
@@ -307,7 +307,7 @@ class PhyRfCmd(G3Cmd):
 
     def parse_args(self, args):
         self.fields['data'] = g3_comms.g3_msgs.parse_data(args.data)
-        print(self.fields)
+        logging.debug(self.fields)
 
     def encode_cmd(self):
         length = len(self.fields['data'])
@@ -454,7 +454,7 @@ class UDPConnSetCmd(G3Cmd):
 
     def parse_args(self, args):
         # values below are 16 bit, just force the bottom bits and call it good.
-        print(f"set cmd {args}")
+        logging.debug(f"set cmd {args}")
         if args.addr == -1:
             self.fields['addr'] = -1
         else:
@@ -479,7 +479,7 @@ class UDPConnSetCmd(G3Cmd):
             self.fields['ipv6addr'] = bytes.fromhex("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00")
         else:
             self.fields['ipv6addr'] = g3_comms.g3_msgs.hi_ipv6_set_ipaddr(self.fields['addr'])
-        print(f"set encodode ipv6: {self.fields['ipv6addr']}")
+        logging.debug(f"set encodode ipv6: {self.fields['ipv6addr']}")
         raw = struct.pack("<B16sHH", self.fields['conn_id'], self.fields['ipv6addr'],
                                      self.fields['remote_port'], self.fields['local_port'])
         return raw

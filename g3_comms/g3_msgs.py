@@ -19,7 +19,7 @@ def decodeMsg(msg):
             decoder.call_hook()
             break
     else: # no break
-        print(f"Message recived but unknown; Raw: {msg}")
+        logging.warning(f"Message recived but unknown; Raw: {msg}")
 
 def parse_data(argdata):
     if argdata[:2] == '0x':

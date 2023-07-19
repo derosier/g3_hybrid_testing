@@ -74,7 +74,7 @@ class UARTBaudSetResp(G3Resp):
         self.fields['speed'] = raw_fields[1]
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 56
 class DBGToolResp(G3Resp):
@@ -107,7 +107,7 @@ class DBGToolResp(G3Resp):
         self.fields['short_id'] = raw_fields[11]
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 62
 class G3GetResp(G3Resp):
@@ -133,7 +133,7 @@ class G3GetResp(G3Resp):
             self.fields['data'] = raw_data[0]
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 63
 class G3SetResp(G3Resp):
@@ -151,7 +151,7 @@ class G3SetResp(G3Resp):
         self.fields['index'] = raw_fields[2]
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 56
 class SWResetResp(G3Resp):
@@ -189,7 +189,7 @@ class SWResetResp(G3Resp):
             logging.error(f"Invalid data when decoding {self.g3_name} data: {msg['data']}")
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Table 95. pg 69
 def decode_mac_beacon(msg, offset):
@@ -352,7 +352,7 @@ class G3SnifferInd(G3Resp):
             logging.error(f"Unknown sniffer frame type key on {self.g3_name}: {raw_fields[0]}")
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 72
 class G3PhyData(G3Resp):
@@ -373,7 +373,7 @@ class G3PhyData(G3Resp):
         self.fields['thermal_warning'] = raw_fields[4]
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 72
 class G3PhyDataInd(G3Resp):
@@ -385,7 +385,7 @@ class G3PhyDataInd(G3Resp):
         self.fields = decode_phy_data(msg['data'], 1)
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 73
 class G3PhyAck(G3Resp):
@@ -402,7 +402,7 @@ class G3PhyAck(G3Resp):
             logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 73
 class G3PhyAckInd(G3Resp):
@@ -414,7 +414,7 @@ class G3PhyAckInd(G3Resp):
         self.fields = decode_phy_ack(msg['data'], 1)
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 74
 class G3PhyRf(G3Resp):
@@ -431,7 +431,7 @@ class G3PhyRf(G3Resp):
             logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 74
 class G3PhyRfInd(G3Resp):
@@ -443,7 +443,7 @@ class G3PhyRfInd(G3Resp):
         self.fields = decode_phy_rf(msg['data'], 1)
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 87
 class BootSrvStartResp(G3Resp):
@@ -460,7 +460,7 @@ class BootSrvStartResp(G3Resp):
             logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 88
 class BootSrvJoinInd(G3Resp):
@@ -475,7 +475,7 @@ class BootSrvJoinInd(G3Resp):
         self.fields['short_id'] = raw_fields[1]
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 90
 class BootDevStartResp(G3Resp):
@@ -494,7 +494,7 @@ class BootDevStartResp(G3Resp):
         self.fields['pan_id'] = raw_fields[2]
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 90
 class BootDevPANSortInd(G3Resp):
@@ -515,7 +515,7 @@ class BootDevPANSortInd(G3Resp):
             offset = offset + 8 # PAN descriptor is 8 bytes
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 89
 class BootGetPSKInd(G3Resp):
@@ -533,7 +533,7 @@ class BootGetPSKInd(G3Resp):
         self.fields['idp'] = raw_fields[:self.fields['idp_len']]
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 89
 class BootSrvSetPSKResp(G3Resp):
@@ -550,7 +550,7 @@ class BootSrvSetPSKResp(G3Resp):
             logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 91
 class UDPData(G3Resp):
@@ -569,7 +569,7 @@ class UDPData(G3Resp):
         self.fields['nexthop_medium'] = raw_fields[2]
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 92
 class UDPDataInd(G3Resp):
@@ -634,7 +634,7 @@ class UDPDataInd(G3Resp):
             logging.error(f"UDP packet recived, len != len(data); len: {self.fields['data_len']}, len(data): {len(self.fields['data'])}")
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 92
 class UDPConnSet(G3Resp):
@@ -651,7 +651,7 @@ class UDPConnSet(G3Resp):
             logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 92
 class UDPConnGet(G3Resp):
@@ -672,7 +672,7 @@ class UDPConnGet(G3Resp):
         self.fields['local_port'] = raw_fields[4]
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 93
 class G3EchoResp(G3Resp):
@@ -690,7 +690,7 @@ class G3EchoResp(G3Resp):
         self.fields['nexthop_medium'] = raw_fields[2]
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 # Datasheet pg 93
 def decode_echo(msg, offset):
@@ -752,7 +752,7 @@ class G3EchoRepInd(G3Resp):
         self.fields = decode_echo(msg['data'], 1)
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 class G3EchoReqInd(G3Resp):
     g3_id = 0xdf
@@ -762,7 +762,7 @@ class G3EchoReqInd(G3Resp):
         self.fields = decode_echo(msg['data'], 1)
 
     def pr_decode(self):
-        print(f'Reply {self.g3_name}: {self.fields}')
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
 
 class MetaError(G3Resp):
     g3_id = 0xFD

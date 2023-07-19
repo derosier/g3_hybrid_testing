@@ -32,7 +32,7 @@ def form_msg(cmd):
     return encap_msg(cmd.g3_id, msg_data)
 
 def send(device, cmd):
-    print(f"Sending command {cmd.g3_name}")
+    logging.info(f"Sending command {cmd.g3_name}")
     msg = form_msg(cmd)
     logging.debug(f"{msg}")
     byte_count = device.write(msg)
@@ -40,13 +40,13 @@ def send(device, cmd):
     if byte_count != len(msg):
         logging.error("Error when sending command")
 
-def send_and_wait(device, cmd, timeout=5):
+def send_and_wait(device, cmd, timeout=1):
     logging.debug(f"Sending command {cmd.g3_name} wait with timeout {timeout}")
     _G_wait.clear()
     cmd.set_cb(cb_wait)
     send(device, cmd)
     if not _G_wait.wait(timeout):
         # Timed out instead of finished
-        print(f"Command {cmd.g3_name} response timed out.")
+        logging.warning(f"Command {cmd.g3_name} response timed out.")
         return {}
     return _G_returned_fields
