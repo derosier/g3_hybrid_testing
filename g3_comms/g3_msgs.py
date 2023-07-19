@@ -2,6 +2,7 @@ import logging
 
 msg_decode_list = []
 msg_cmds = {}
+print_msg = False
 
 def decodeMsg(msg):
     if msg is None:
@@ -13,7 +14,8 @@ def decodeMsg(msg):
             decoder.valid_msg = msg['rx_status'] == 'OK'
             if decoder.valid_msg:
                 decoder.decode(msg)
-                decoder.pr_decode()
+                if print_msg:
+                    decoder.pr_decode()
             else:
                 decoder.raw_msg = msg
             decoder.call_hook()

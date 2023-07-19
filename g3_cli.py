@@ -28,6 +28,10 @@ parser.add_argument("-t", "--timeout", type=int, default=5, help="Command wait f
 parser.add_argument("-i", "--interactive", action="store_true", help="Do an interactive cli session.")
 parser.add_argument("-n", "--dryrun", action="store_true", help="Process but don't send messages.")
 
+# The g3_cli wants to print messages using the default pr_decode() function of the class, so
+# set the setting that makes that happen
+g3_comms.g3_msgs.print_msg = True
+
 # Instantiate a global instance of every response we want to process on Rx
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.UARTBaudSetResp())

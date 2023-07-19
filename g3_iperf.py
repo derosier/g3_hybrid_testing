@@ -957,6 +957,9 @@ def main():
     logging.debug("*** Starting iperf")
     logging.debug(f"args: {args}")
 
+    if args.verbosity.upper() == 'DEBUG':
+        g3_comms.g3_msgs.print_msg = True
+
     # Give user a warning about failures to log data
     if args.client and args.activity is None:
         logging.warning("     Note: The results from this will not be logged")
