@@ -145,16 +145,22 @@ class ConnMan():
                                  conn['remote_port'], conn['local_port'])
 
     # cli commands
+    def print_conn_header(self):
+        print(f"id | dest addr | {'dest ipv6 address':^39} | dest port | local port")
+
+    def print_conn(self, conn):
+        d_s_a = self.connections[conn]['remote_addr']
+        d_p = self.connections[conn]['remote_port']
+        l_p = self.connections[conn]['local_port']
+        d_ip = binascii.hexlify(g3_comms.g3_msgs.hi_ipv6_set_ipaddr(self.connections[conn]['remote_addr'], self.pan), ':', 2).decode('utf-8')
+        print(f"{conn:2} | {d_s_a:9} | {d_ip:39} | {d_p:9} | {l_p:10}")
+
     def print_conn_list(self):
         print("Active connections")
         print("==================")
-        print(f"id | dest addr | {'dest ipv6 address':^39} | dest port | local port")
+        self.print_conn_header()
         for conn in self.connections: # pylint: disable=consider-using-dict-items
-            d_s_a = self.connections[conn]['remote_addr']
-            d_p = self.connections[conn]['remote_port']
-            l_p = self.connections[conn]['local_port']
-            d_ip = binascii.hexlify(g3_comms.g3_msgs.hi_ipv6_set_ipaddr(self.connections[conn]['remote_addr'], self.pan), ':', 2).decode('utf-8')
-            print(f"{conn:2} | {d_s_a:9} | {d_ip:39} | {d_p:9} | {l_p:10}")
+            self.print_conn(conn)
 
     def print_info(self):
         print("Internal information")

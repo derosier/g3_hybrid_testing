@@ -593,6 +593,8 @@ def wait_for_connection(device, client_info):
                 client_info.clear()
                 return False
             else:
+                print("Established connection to client:")
+                connman.print_conn(client_info['connid'])
                 return True
     # We only get here when we're no longer _G_running.  Everything else loops or returns
     return False
@@ -727,6 +729,7 @@ def do_server(device):
     # First we'll setup our connection.  We'll use port 5000 as our local port, and setup to accept
     # from all.
     listen_connid = connman.new_conn(device, -1, 0, SRV_UDP_PORT)
+    connman.print_conn_list()
 
     # We'll loop until we quit.
     while _G_running:
@@ -921,6 +924,7 @@ def do_client(device):
     # First we'll setup our connection.  We'll use port 5001 as our local port, 5000 as the srv port
     # and connect to the server at the address given
     connid = connman.new_conn(device, args.client, SRV_UDP_PORT, CLIENT_UDP_PORT)
+    connman.print_conn_list()
 
     for tries in range(0, PING_START_RETRIES):
         if not _G_running:
@@ -993,10 +997,8 @@ def main():
         # it after the rx_thread starts.
         connman.init_setup(device)
 
-        print("\n\nInitialization complete")
-        print("=======================\n")
+        print("Initialization complete")
         connman.print_info()
-        connman.print_conn_list()
         if args.server:
             do_server(device)
         else:
