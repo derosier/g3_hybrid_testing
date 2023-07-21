@@ -9,6 +9,7 @@ import struct
 import time
 import os
 import json
+from collections import Counter
 
 import serial
 
@@ -53,6 +54,8 @@ MSG_MAX_PACKETS = 1000
 DONE_COUNT_PACKETS = 3
 
 NS_IN_SEC = 1000000000
+
+LOOKUP_MEDIA = ('plc', 'rf')
 
 # 1200 bytes below
 # There's a MTU limit for the UDP packets of 1270.
@@ -420,6 +423,13 @@ def init_accounting(stats):
     stats['send_error'] = 0
     stats['send_error'] = 0
     stats['end_time_ns'] = 0
+    stats['media_list'] = []
+    stats['lqi_list'] = []
+    stats['phasediff_list'] = []
+    stats['modtype_list'] = []
+    stats['modscheme_list'] = []
+    stats['tonemap_list'] = []
+
     # capturing start time should be the last thing we do.  I know we'll have a little overhead
     # due to python, but might as well minimize that.
     stats['start_time_ns'] = time.monotonic_ns()
@@ -429,6 +439,17 @@ def finalize_accounting(stats):
     # due to python, but might as well minimize that.
     stats['end_time_ns'] = time.monotonic_ns()
     logging.debug(f"    finalize_srv_accounting({stats})")
+
+    # covert the list data to counts like a histogram
+    stats['media_hist'] = {}
+    media = Counter(stats['media_list'])
+    for key in media:
+        stats['media_hist'][LOOKUP_MEDIA[key]] = media[key]
+    stats['lqi_hist'] = Counter(stats['lqi_list'])
+    stats['phasediff_hist'] = Counter(stats['phasediff_list'])
+    stats['modtype_hist'] = Counter(stats['modtype_list'])
+    stats['modscheme_hist'] = Counter(stats['modscheme_list'])
+    stats['tonemap_hist'] = Counter(stats['tonemap_list'])
 
 # start is in integer nanoseconds based on time.monotronic_ns()
 # t is in seconds, can be int or floating, either works
@@ -518,6 +539,13 @@ def print_stats(side, client_info, stats):
         print(f"Lost packets: {lost}")
         print(f"Total throughput bytes-per-second: {total_bps:.3f}")
         print(f"Valid throughput bytes-per-second: {valid_bps:.3f}")
+    print("--------------------------------------------------------------------------------------")
+    print(f"Media: {stats['media_hist']}")
+    print(f"LQI: {stats['lqi_hist']}")
+    print(f"PhaseDiff: {stats['phasediff_hist']}")
+    print(f"Modulation Type: {stats['modtype_hist']}")
+    print(f"Modulation Scheme: {stats['modscheme_hist']}")
+    print(f"Tonemaps: {stats['tonemap_hist']}")
     print("======================================================================================")
 
 ####################################################################################################
@@ -701,6 +729,14 @@ def do_echos(device, client_info, stats):
             if not send_ok:
                 logging.error(f"Error sending response: {status}")
                 stats['send_error'] = stats['send_error'] + 1
+
+            # send back our packet before doing the stats on it - ie do this outside the fastpath
+            stats['media_list'].append(raw_msg['prevhop_media'])
+            stats['lqi_list'].append(raw_msg['lqi'])
+            stats['phasediff_list'].append(raw_msg['phasediff'])
+            stats['modtype_list'].append(raw_msg['modtype'])
+            stats['modscheme_list'].append(raw_msg['modscheme'])
+            stats['tonemap_list'].append(raw_msg['tonemap'])
 
             # Now update our local info
             msg_number = msg_number + 1
@@ -889,6 +925,13 @@ def do_iperfs(device, connid, session_info, stats):#pylint: disable=unused-argum
                     pong_msg = _G_returned_data
                     pong_packet = decode_packet(pong_msg['data'])
                     (ok_pong, packet_num) = check_pong(pong_packet, pong_msg, packet_num, session_info['srv_id'], stats) #pylint: disable=unused-variable
+                    if ok_pong:
+                        stats['media_list'].append(pong_msg['prevhop_media'])
+                        stats['lqi_list'].append(pong_msg['lqi'])
+                        stats['phasediff_list'].append(pong_msg['phasediff'])
+                        stats['modtype_list'].append(pong_msg['modtype'])
+                        stats['modscheme_list'].append(pong_msg['modscheme'])
+                        stats['tonemap_list'].append(pong_msg['tonemap'])
         else:
             logging.error(f"Error sending ping: {status}")
             stats['send_error'] = stats['send_error'] + 1
