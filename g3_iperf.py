@@ -682,14 +682,15 @@ def do_echos(device, client_info, stats):
     msg_number = 1 # we start with 1
     ping_ok = False
     handle = 1
+    _G_wait_data.clear()
     while not done and _G_running:
-        _G_wait_data.clear()
         if not _G_wait_data.wait(SRV_ECHO_TIMEOUT):
             continue # timeout here is expected
 
         # We are also going to assume packets can't come in faster than we process them.
         # TODO: queue packets!
         raw_msg = _G_returned_data
+        _G_wait_data.clear()
         if not raw_msg['valid_msg']:
             print(f"Data Rx but invalid packet: {raw_msg['rx_status']}")
             send_nack(device, client_info)
