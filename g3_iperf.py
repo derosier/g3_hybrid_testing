@@ -10,6 +10,7 @@ import time
 import os
 import json
 from collections import Counter
+import sys
 
 import serial
 
@@ -102,6 +103,8 @@ MSG_DATA = bytes.fromhex(
 "55555555 55555555 a5a5a5a5 ffffffff"
 )
 
+msg_buffer = bytes()
+
 print_progress = False
 
 parser = argparse.ArgumentParser()
@@ -111,6 +114,7 @@ parser.add_argument("-V", "--verbosity", default="WARNING", help="Logging verbos
 parser.add_argument("-t", "--timeout", type=int, default=5, help="Command wait for response timeout, default 5 seconds.")
 parser.add_argument("-n", "--noreset", action="store_true", help="Assume properly running, don't issue HW and SW resets. Saves 30 seconds on start.")
 parser.add_argument("--speed", type=int, default=default_new_baudrate, help=f"Post-init serial port baud rate, default {default_new_baudrate}")
+parser.add_argument("-S", "--size", type=int, default=MSG_LEN, help=f"Number of bytes to send in message, default {MSG_LEN}")
 group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument("-s", "--server", action="store_true", help="Run as a server.")
 group.add_argument("-c", "--client", type=int, help="Run as a client and target the given short address.")
@@ -374,7 +378,7 @@ def encode_ping_packet(packet_num):
     fields['direction'] = MSG_DIR_OUT
     fields['max_num'] = MSG_MAX_PACKETS
     fields['packet_num'] = packet_num
-    fields['data'] = MSG_DATA
+    fields['data'] = msg_buffer
     return encode_packet(fields)
 
 def encode_resp_packet(ping_fields):
@@ -644,7 +648,7 @@ def check_ping(packet, raw_msg, num, client_info, stats):
 
     # check packet number
     if packet['packet_num'] > num:
-        print(f"Skipped packet {num}")
+        print(f"Skipped packet {num}, got {packet['packet_num']}")
         # technically might still be a valid packet, so increment number
         stats['skipped_count'] = stats['skipped_count'] + (packet['packet_num'] - num)
     elif packet['packet_num'] != num:
@@ -653,7 +657,8 @@ def check_ping(packet, raw_msg, num, client_info, stats):
         return (False, packet['packet_num'])
 
     # validate data
-    if packet['data'] != MSG_DATA:
+    length = len(packet['data'])
+    if packet['data'] != MSG_DATA[:length]:
         print("BAD DATA")
         stats['corrupted_count'] = stats['corrupted_count'] + 1
         return (False, packet['packet_num'])
@@ -882,7 +887,7 @@ def check_pong(packet, raw_msg, num, srv_id, stats):
 
     # check packet number
     if packet['packet_num'] > num:
-        print(f"Skipped packet {num}")
+        print(f"Skipped packet {num}, got {packet['packet_num']}")
         # technically might still be a valid packet, so increment number
         stats['skipped_count'] = stats['skipped_count'] + (packet['packet_num'] - num)
     elif packet['packet_num'] != num:
@@ -891,7 +896,7 @@ def check_pong(packet, raw_msg, num, srv_id, stats):
         return (False, packet['packet_num'])
 
     # validate data
-    if packet['data'] != MSG_DATA:
+    if packet['data'] != msg_buffer:
         print("BAD DATA")
         stats['corrupted_count'] = stats['corrupted_count'] + 1
         return (False, packet['packet_num'])
@@ -1010,11 +1015,17 @@ def do_client(device):
 ####################################################################################################
 
 def main():
+    global msg_buffer
     logging.debug("*** Starting iperf")
     logging.debug(f"args: {args}")
 
     if args.verbosity.upper() == 'DEBUG':
         g3_comms.g3_msgs.print_msg = True
+
+    size = args.size
+    if size > MSG_LEN or size <= 0:
+        logging.error(f"Invalid packet size selected {size}")
+        sys.exit(1)
 
     # Give user a warning about failures to log data
     if args.client and args.activity is None:
@@ -1049,6 +1060,7 @@ def main():
     if args.server:
         init_ret = init_board_server(device)
     else:
+        msg_buffer = MSG_DATA[:size]
         init_ret = init_board_client(device)
 
     if init_ret:
