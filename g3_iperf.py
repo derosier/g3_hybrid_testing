@@ -21,6 +21,7 @@ from g3_comms import g3_resp
 from g3_comms import g3_cmd
 import g3_comms.g3_connman
 from g3_comms.g3_crc import crc16
+import g3_comms.g3_consts
 
 default_port="/dev/ttyACM0"
 default_baudrate=115200
@@ -115,6 +116,7 @@ parser.add_argument("-t", "--timeout", type=int, default=5, help="Command wait f
 parser.add_argument("-n", "--noreset", action="store_true", help="Assume properly running, don't issue HW and SW resets. Saves 30 seconds on start.")
 parser.add_argument("--speed", type=int, default=default_new_baudrate, help=f"Post-init serial port baud rate, default {default_new_baudrate}")
 parser.add_argument("-S", "--size", type=int, default=MSG_LEN, help=f"Number of bytes to send in message, default {MSG_LEN}")
+parser.add_argument("-m", "--media", default='all', choices=['all', 'plc', 'rf'], help="Select media to use. Default is both.")
 group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument("-s", "--server", action="store_true", help="Run as a server.")
 group.add_argument("-c", "--client", type=int, help="Run as a client and target the given short address.")
@@ -262,6 +264,21 @@ def set_speed(device, speed):
         return (False, fields['status'])
     device.baudrate = speed
     logging.warning(f"Serial port baud rate updated to {speed}")
+    return (True, fields['status'])
+
+def set_media(device, value):
+    cmd_args = argparse.Namespace()
+    cmd_args.id = g3_comms.g3_consts.G3_LIB_PECHANNELCONFIG_ID
+    cmd_args.index = 0
+    cmd_args.data = value
+    set_cmd = g3_cmd.G3SetCmd()
+    set_cmd.parse_args(cmd_args)
+    set_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
+    fields = g3_comms.g3_tx.send_and_wait(device, set_cmd)
+    set_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
+    if not check_status_ok(fields):
+        logging.error("Error setting media to {value}.")
+        return (False, fields['status'])
     return (True, fields['status'])
 
 def send_udp(device, connid, handle, packet):
@@ -795,7 +812,7 @@ def do_server(device):
 ##  Client stuff
 ####################################################################################################
 
-def init_board_client(device):
+def init_board_client(device, media):
     set_hook(dev_start_callback, ['G3BOOT-DEV-START'])
     set_hook(data_rx_client_callback, ['G3UDP-DATA.Ind'])
     set_hook(data_rx_client_callback, ['META-ERROR'])
@@ -835,6 +852,11 @@ def init_board_client(device):
     if not check_status_ok(_G_returned_dev_start):
         logging.error("G3BOOT-DEV-START unsuccessful.")
         return False
+
+    if media == 'rf':
+        set_media(device, g3_comms.g3_consts.G3_MEDIA_RF)
+    elif media == 'plc':
+        set_media(device, g3_comms.g3_consts.G3_MEDIA_PLC)
 
     print("Client start was successful.")
 
@@ -1062,7 +1084,7 @@ def main():
         init_ret = init_board_server(device)
     else:
         msg_buffer = MSG_DATA[:size]
-        init_ret = init_board_client(device)
+        init_ret = init_board_client(device, args.media)
 
     if init_ret:
         # connman.init_setup() does commands and expects responses. It is unable to work unless we do
@@ -1078,6 +1100,9 @@ def main():
             exit_clean()
 
     # Cleanup and quit
+    if args.media != 'all':
+        set_media(device, g3_comms.g3_consts.G3_MEDIA_ALL)
+
     set_speed(device, baudrate) # restore to whatever speed we started with
     g3_comms.g3_rx.G3Rx.quit()
     rx_thread.join()

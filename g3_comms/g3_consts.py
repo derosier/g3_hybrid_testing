@@ -211,3 +211,14 @@ G3_PHY_RSBLOCKS = {
     0: "Two RS Blocks",
     1: "One RS Block"
 }
+
+#######################
+# PIB table values
+#
+# IDs are 4 byte integers
+# Data values are strings, hex strings if integers
+
+G3_LIB_PECHANNELCONFIG_ID = 0x00003202
+G3_MEDIA_ALL = "0x0F000000"
+G3_MEDIA_PLC = "0x03000000"
+G3_MEDIA_RF = "0x0C000000"
