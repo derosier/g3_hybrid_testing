@@ -109,6 +109,61 @@ class DBGToolResp(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
+# Datasheet pg 58
+class G3RfConfigSet(G3Resp):
+    g3_id = 0x19
+    g3_name = 'HOSTIF-RFCONFIGSET'
+
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from("<B", msg['data'], 1)
+        self.raw_fields = raw_fields
+        try:
+            self.fields['status'] = G3C.G3_RESULTS[raw_fields[0]]
+        except KeyError:
+            logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
+
+    def pr_decode(self):
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
+
+# Datasheet pg 58
+class G3RfConfigGet(G3Resp):
+    g3_id = 0x1B
+    g3_name = 'HOSTIF-RFCONFIGGET'
+
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from(G3S.RF_CFG, msg['data'], 1)
+        self.raw_fields = raw_fields
+        self.fields['radio_base_freq'] = raw_fields[0]
+        self.fields['radio_mod'] = raw_fields[1]
+        self.fields['radio_datarate'] = raw_fields[2]
+        self.fields['radio_freqdev'] = raw_fields[3]
+        self.fields['radio_bandwidth'] = raw_fields[4]
+        self.fields['radio_csblanking'] = raw_fields[5]
+        self.fields['radio_xtalfreq'] = raw_fields[6]
+        self.fields['radio_rssigain'] = raw_fields[7]
+        self.fields['powerdbm'] = raw_fields[8]
+        self.fields['pkt_crcmode'] = raw_fields[9]
+        self.fields['pkt_enfec'] = raw_fields[10]
+        self.fields['pkt_enwhitening'] = raw_fields[11]
+        self.fields['pkt_eninterleaving'] = raw_fields[12]
+        self.fields['irq_gpio'] = raw_fields[13]
+        self.fields['mcu_clk_en'] = raw_fields[14]
+        self.fields['mcu_clk_gpio'] = raw_fields[15]
+        self.fields['mcu_clk_xoratio'] = raw_fields[16]
+        self.fields['mcu_clk_rcoratio'] = raw_fields[17]
+        self.fields['mcu_clk_clockcycles'] = raw_fields[18]
+        self.fields['extsmps_en'] = raw_fields[19]
+        self.fields['fem_en'] = raw_fields[20]
+        self.fields['fem_csd_gpio'] = raw_fields[21]
+        self.fields['fem_cps_gpio'] = raw_fields[22]
+        self.fields['fem_ctx_gpio'] = raw_fields[23]
+        self.fields['fem_tx_bypass'] = raw_fields[24]
+
+    def pr_decode(self):
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
+
 # Datasheet pg 62
 class G3GetResp(G3Resp):
     g3_id = 0x21

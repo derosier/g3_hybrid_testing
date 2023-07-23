@@ -3,6 +3,7 @@ import struct
 import binascii
 
 import g3_comms.g3_consts as G3C
+import g3_comms.g3_structs as G3S
 import g3_comms.g3_msgs
 
 class G3Cmd():
@@ -124,6 +125,105 @@ class DBGToolCmd(G3Cmd):
         if self.fields['subcmd'] > self.HI_DBG_INFO:
             logging.debug(f"Unsupported DBGTOOL subcommand {self.fields['subcmd']}")
         return raw
+
+# Datasheet pg 57
+class G3RfConfigSetCmd(G3Cmd):
+    g3_id = 0x18
+    g3_name = 'HOSTIF-RFCONFIGSET'
+    rx_msgs = ['HOSTIF-RFCONFIGSET']
+
+    # The RF configuration is complicated, with 25 parameters. Many of these control hardware things
+    # that we can't change without causing improper operations or damaging the hardware. The config
+    # is also persistent across hardware resets and power-cycles. We're going to only expose some
+    # of the parameters to change. The ones that are clearly hardware configuration will be hard
+    # set. Everything in the parser will also be set to the defaults we found the boards at, so
+    # if you want to keep any changes, you need to specify the values, or if we want new defaults
+    # we're going to have to update the parser defaults here.
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('rfcfgset', help='Set RF configuration')
+        parser.add_argument('--basefreq', type=int, default=915000000, help='Base RF frequency')
+        parser.add_argument('--mod', type=int, default=0x00, choices=[0x70, 0x00, 0x10, 0xa0, 0x20, 0xB0, 0x30, 0x50, 0x60], help='Modulation, see pg 57')
+        parser.add_argument('--datarate', type=int, default=50000, help='Datarate')
+        parser.add_argument('--csblanking', type=int, default=0x01, choices=[0x00, 0x01], help='Prevents data to be recieved if the RSSI level on the air is below the RSSI threshold')
+        parser.add_argument('--rssigain', type=int, default=14, help='Set RSSI filter gain 0-15')
+        parser.add_argument('--powerdbm', type=int, default=45, help='Set PA power. 0-45')
+        parser.add_argument('--crcmode', type=int, default=0xa0, choices=[0x00, 0x20, 0x40, 0x60, 0x80, 0xa0], help='Select CRC type. See pg 57')
+        parser.add_argument('--enfec', type=int, default=0x00, choices=[0x00, 0x01], help='Enable FEC/Viterbi')
+        parser.add_argument('--enwhite', type=int, default=0x01, choices=[0x00, 0x01], help='Enable the data whitening')
+        parser.add_argument('--eninterleaveing', type=int, default=0x01, choices=[0x00, 0x01], help='Enable interleaving of 802.15.4g packet')
+        parser.add_argument('--entxbypass', type=int, default=0x00, choices=[0x00, 0x01], help='Enable FEM Tx bypass mode')
+        return parser
+
+    def parse_args(self, args):
+        self.fields['radio_base_freq'] = args.basefreq
+        self.fields['radio_mod'] = args.mod
+        self.fields['radio_datarate'] = args.datarate
+        self.fields['radio_freqdev'] = 12500
+        self.fields['radio_bandwidth'] = 100000
+        self.fields['radio_csblanking'] = args.csblanking
+        self.fields['radio_xtalfreq'] = 50000000
+        self.fields['radio_rssigain'] = args.rssigain
+        self.fields['powerdbm'] = args.powerdbm
+        self.fields['pkt_crcmode'] = args.crcmode
+        self.fields['pkt_enfec'] = args.enfec
+        self.fields['pkt_enwhitening'] = args.enwhite
+        self.fields['pkt_eninterleaving'] = args.eninterleaveing
+        self.fields['irq_gpio'] = 3
+        self.fields['mcu_clk_en'] = 0
+        self.fields['mcu_clk_gpio'] = 0xff
+        self.fields['mcu_clk_xoratio'] = 0xff
+        self.fields['mcu_clk_rcoratio'] = 0xff
+        self.fields['mcu_clk_clockcycles'] = 0xff
+        self.fields['extsmps_en'] = 0
+        self.fields['fem_en'] = 1
+        self.fields['fem_csd_gpio'] = 0
+        self.fields['fem_cps_gpio'] = 1
+        self.fields['fem_ctx_gpio'] = 2
+        self.fields['fem_tx_bypass'] = args.entxbypass
+
+    def encode_cmd(self):
+        raw = struct.pack(G3S.RF_CFG,
+            self.fields['radio_base_freq'],
+            self.fields['radio_mod'],
+            self.fields['radio_datarate'],
+            self.fields['radio_freqdev'],
+            self.fields['radio_bandwidth'],
+            self.fields['radio_csblanking'],
+            self.fields['radio_xtalfreq'],
+            self.fields['radio_rssigain'],
+            self.fields['powerdbm'],
+            self.fields['pkt_crcmode'],
+            self.fields['pkt_enfec'],
+            self.fields['pkt_enwhitening'],
+            self.fields['pkt_eninterleaving'],
+            self.fields['irq_gpio'],
+            self.fields['mcu_clk_en'],
+            self.fields['mcu_clk_gpio'],
+            self.fields['mcu_clk_xoratio'],
+            self.fields['mcu_clk_rcoratio'],
+            self.fields['mcu_clk_clockcycles'],
+            self.fields['extsmps_en'],
+            self.fields['fem_en'],
+            self.fields['fem_csd_gpio'],
+            self.fields['fem_cps_gpio'],
+            self.fields['fem_ctx_gpio'],
+            self.fields['fem_tx_bypass']
+        )
+        return raw
+
+# Datasheet pg 58
+class G3RfConfigGetCmd(G3Cmd):
+    g3_id = 0x1A
+    g3_name = 'HOSTIF-RFCONFIGGET'
+    rx_msgs = ['HOSTIF-RFCONFIGGET']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('rfcfgget', help='Get RF configuration')
+        return parser
+
+    def encode_cmd(self):
+        logging.debug("HOSTIF-RFCONFIGGET.Requst has no data to encode")
+        return b''
 
 # Datasheet pg 62
 class G3GetCmd(G3Cmd):

@@ -17,3 +17,5 @@ def pack_PAN_descriptor(fields):
     data = struct.pack("<HBHHB", fields['PAN_ID'], fields['link_quality'],
                                  fields['LBA_addr'], fields['route_cost'], fields['media_type'])
     return data
+
+RF_CFG = "<IBIIIBI18B"
