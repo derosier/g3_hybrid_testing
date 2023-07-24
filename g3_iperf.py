@@ -496,8 +496,8 @@ def record_stats(activity_name, client_info, stats):
     results["total_bps"] = total_bps
     results["valid_bps"] = valid_bps
     results["lost_packets"] = lost
-    results["srv_id"] = client_info['srv_id']
-    results["addr"] = client_info['addr']
+    results["srv_id"] = str(client_info['srv_id'])
+    results["addr"] = str(client_info['addr'])
     results["send_count"] = stats['send_count']
     results["nacked_count"] = stats['nacked_count']
     results["ping_count"] = stats['ping_count']
@@ -506,6 +506,19 @@ def record_stats(activity_name, client_info, stats):
     results["rx_bytes"] = stats['rx_bytes']
     results["ping_bytes"] = stats['ping_bytes']
     results["snr"] = snr   # We will need this eventually
+
+    # Since the lists of stats are ordered, we can just report the raw info
+    results["data_set"] = {}
+    results["data_set"]["media"] = []
+    for val in stats['media_list']:
+        results["data_set"]["media"].append(LOOKUP_MEDIA[val])
+    results["data_set"]["lqi"] = stats['lqi_list']
+    results["data_set"]["phasediff"] = stats['phasediff_list']
+    results["data_set"]["modtype"] = stats['modtype_list']
+    results["data_set"]["modscheme"] = stats['modscheme_list']
+    results["data_set"]["tonemap"] = []
+    for val in stats['tonemap_list']:
+        results["data_set"]["tonemap"].append(str(val))
 
     # Check for existing results json file
     # If one does NOT exist, create one
