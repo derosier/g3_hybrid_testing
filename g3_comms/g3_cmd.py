@@ -144,6 +144,8 @@ class G3RfConfigSetCmd(G3Cmd):
         parser.add_argument('--basefreq', type=int, default=915000000, help='Base RF frequency')
         parser.add_argument('--mod', type=int, default=0x00, choices=[0x70, 0x00, 0x10, 0xa0, 0x20, 0xB0, 0x30, 0x50, 0x60], help='Modulation, see pg 57')
         parser.add_argument('--datarate', type=int, default=50000, help='Datarate')
+        parser.add_argument('--freqdev', type=int, default=12500, help='Frequency division')
+        parser.add_argument('--bandwidth', type=int, default=100000, help='Bandwidth')
         parser.add_argument('--csblanking', type=int, default=0x01, choices=[0x00, 0x01], help='Prevents data to be recieved if the RSSI level on the air is below the RSSI threshold')
         parser.add_argument('--rssigain', type=int, default=14, help='Set RSSI filter gain 0-15')
         parser.add_argument('--powerdbm', type=int, default=45, help='Set PA power. 0-45')
@@ -158,8 +160,8 @@ class G3RfConfigSetCmd(G3Cmd):
         self.fields['radio_base_freq'] = args.basefreq
         self.fields['radio_mod'] = args.mod
         self.fields['radio_datarate'] = args.datarate
-        self.fields['radio_freqdev'] = 12500
-        self.fields['radio_bandwidth'] = 100000
+        self.fields['radio_freqdev'] = args.freqdev
+        self.fields['radio_bandwidth'] = args.bandwidth
         self.fields['radio_csblanking'] = args.csblanking
         self.fields['radio_xtalfreq'] = 50000000
         self.fields['radio_rssigain'] = args.rssigain
