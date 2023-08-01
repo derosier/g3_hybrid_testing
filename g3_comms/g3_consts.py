@@ -166,7 +166,7 @@ G3_RESULTS = {
     0xFD: 'G3_SUPERFRAME_OVERLAP'
 }
 
-G3LIB_PIB_VALUE_FORMAT = {
+G3LIB_VALUE_FORMAT = {
     1: "<B",
     2: "<H",
     4: "<I",
@@ -211,6 +211,29 @@ G3_PHY_RSBLOCKS = {
     0: "Two RS Blocks",
     1: "One RS Block"
 }
+
+#######################
+# NVM stuff
+# Table 44. NVM operation for HOSTIF-NVM Pg 54
+NVM_OPP = {
+    'erase': 0,
+    'read': 1,
+    'write': 2,
+}
+
+# reverse lookup for Table 44
+NVM_OPP_R = {y: x for x, y in NVM_OPP.items()}
+
+# Table 45. NVM sections for HOSTIF-NVM Pg 54
+NVM_SECTION = {
+    'gen': 1,
+    'plc': 2,
+    'plcc': 3,
+    'rf': 4,
+}
+
+# reverse lookup for Table 44
+NVM_SECTION_R = {y: x for x, y in NVM_SECTION.items()}
 
 #######################
 # PIB table values

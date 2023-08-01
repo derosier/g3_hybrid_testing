@@ -104,6 +104,115 @@ class UARTBaudSetCmd(G3Cmd):
         raw = struct.pack("<I", self.fields['speed'])
         return raw
 
+# Datasheet pg 54
+class SFlashCmd(G3Cmd):
+    g3_id = 0x0E
+    g3_name = 'HOSTIF-SFLASH'
+    rx_msgs = ['HOSTIF-SFLASH']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('sflash', help='Read, write, and erase the sflash sectors')
+        parser.add_argument('opp',  choices=list(G3C.NVM_OPP.keys()), help=f'SFLASH operation {G3C.NVM_OPP.keys()}')
+        parser.add_argument('size', type=int, help='Size of data to read')
+        parser.add_argument('address', help='Address in sflash to erase, read or write')
+        parser.add_argument('data', help="Data as string or hex with '0x' in little endian byte order")
+        return parser
+
+    # args:
+    #     opp (string): one of 'erase', 'write', 'read'
+    #     section (string): from G3C.NVM_SECTION
+    #     offset (int): Integer offset into NVM. See tables 17, 18, 19 pp 17-18
+    #     bindata (bytes): For write only, optional data already in b'' format. If not present,
+    #                      requires data. Intended for programatic use, so no CLI param.
+    #     data (string/bytes): For write only, textual representation of data. Might be a string, or b'', but if
+    #                          it starts with '0x' its assumed to be encoded in hex and will be passed
+    #                          through bytes.fromhex. If not, it's assumed to be UTF-8. Required
+    #                          IIF bindata doesn't exist.
+    def parse_args(self, args):
+        self.fields['opp'] = G3C.NVM_OPP[args.opp]
+        self.fields['address'] = int(args.address, 0)
+        self.fields['size'] = args.size
+        try:
+            self.fields['data'] = args.bindata
+        except AttributeError:
+            self.fields['data'] = g3_comms.g3_msgs.parse_data(args.data)
+
+    def encode_cmd(self):
+        length = self.fields['size']
+        raw = struct.pack(f"<BHI{length}s", self.fields['opp'], self.fields['size'],
+                                            self.fields['address'], self.fields['data'])
+        return raw
+
+# Datasheet pg 54
+class NVMCmd(G3Cmd):
+    g3_id = 0x10
+    g3_name = 'HOSTIF-NVM'
+    rx_msgs = ['HOSTIF-NVM']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('nvm', help='Read, write, and erase the NVM values')
+        self.subparsers = parser.add_subparsers(dest='nvmcmd')
+        self.subparsers.add_parser('erase', help="Erase NVM")
+        nvmread = self.subparsers.add_parser('read', help="Read value from NVM")
+        nvmwrite = self.subparsers.add_parser('write', help="Write value to NVM")
+        nvmread.add_argument('section', choices=list(G3C.NVM_SECTION.keys()), help='NVM section')
+        nvmread.add_argument('offset', type=int, help='Offset of register to read or write')
+        nvmread.add_argument('size', type=int, help='Size of data to read')
+        nvmwrite.add_argument('section', choices=list(G3C.NVM_SECTION.keys()), help='NVM section')
+        nvmwrite.add_argument('offset', type=int, help='Offset of register to read or write')
+        nvmwrite.add_argument('data', help="Data as string or hex with '0x' in little endian byte order")
+        return parser
+
+    # args:
+    #     opp (string): one of 'erase', 'write', 'read'
+    #     section (string): from G3C.NVM_SECTION
+    #     offset (int): Integer offset into NVM. See tables 17, 18, 19 pp 17-18
+    #     bindata (bytes): For write only, optional data already in b'' format. If not present,
+    #                      requires data. Intended for programatic use, so no CLI param.
+    #     data (string/bytes): For write only, textual representation of data. Might be a string, or b'', but if
+    #                          it starts with '0x' its assumed to be encoded in hex and will be passed
+    #                          through bytes.fromhex. If not, it's assumed to be UTF-8. Required
+    #                          IIF bindata doesn't exist.
+    def parse_args(self, args):
+        if args.nvmcmd == 'erase':
+            self.fields['opp'] = G3C.NVM_OPP['erase']
+            return
+
+        self.fields['opp'] = G3C.NVM_OPP[args.nvmcmd]
+        self.fields['section'] = G3C.NVM_SECTION[args.section]
+        self.fields['offset'] = args.offset
+        if args.nvmcmd == 'read':
+            self.fields['size'] = args.size
+        if args.nvmcmd == 'write':
+            try:
+                self.fields['data'] = args.bindata
+            except AttributeError:
+                self.fields['data'] = g3_comms.g3_msgs.parse_data(args.data)
+    def _encode_erase(self):
+        raw = struct.pack("<B", self.fields['opp'])
+        return raw
+
+    def _encode_read(self):
+        raw = struct.pack("<BBHH", self.fields['opp'], self.fields['section'],
+                                  self.fields['offset'], self.fields['size'])
+        return raw
+
+    def _encode_write(self):
+        length = len(self.fields['data'])
+        raw = struct.pack(f"<BBHH{length}s", self.fields['opp'], self.fields['section'],
+                                            self.fields['offset'], length,
+                                            self.fields['data'])
+        return raw
+
+    def encode_cmd(self):
+        if self.fields['opp'] == G3C.NVM_OPP['erase']:
+            return self._encode_erase()
+        if self.fields['opp'] == G3C.NVM_OPP['read']:
+            return self._encode_read()
+        if self.fields['opp'] == G3C.NVM_OPP['write']:
+            return self._encode_write()
+        return None
+
 # Datasheet pg 55
 class DBGToolCmd(G3Cmd):
     g3_id = 0x14

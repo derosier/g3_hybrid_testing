@@ -35,6 +35,8 @@ g3_comms.g3_msgs.print_msg = True
 # Instantiate a global instance of every response we want to process on Rx
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.UARTBaudSetResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.SFlashResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.NVMResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.DBGToolResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.G3RfConfigSet())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.G3RfConfigGet())
@@ -66,6 +68,8 @@ g3_comms.g3_msgs.msg_decode_list.append(g3_resp.MetaError())
 # Instantiate a global instance of every command we might want to send
 g3_comms.g3_msgs.msg_cmds['hwreset'] = g3_cmd.HWResetCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['speed'] = g3_cmd.UARTBaudSetCmd(subparsers)
+g3_comms.g3_msgs.msg_cmds['sflash'] = g3_cmd.SFlashCmd(subparsers)
+g3_comms.g3_msgs.msg_cmds['nvm'] = g3_cmd.NVMCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['dbgtool'] = g3_cmd.DBGToolCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['rfcfgset'] = g3_cmd.G3RfConfigSetCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['rfcfgget'] = g3_cmd.G3RfConfigGetCmd(subparsers)

@@ -76,6 +76,42 @@ class UARTBaudSetResp(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
+# Datasheet pg 54
+class SFlashResp(G3Resp):
+    g3_id = 0x0f
+    g3_name = 'HOSTIF-SFLASH'
+    def decode(self, msg):
+        super().decode(msg)
+        self.fields['data'] = msg['data']
+
+    def pr_decode(self):
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
+
+# Datasheet pg 54
+class NVMResp(G3Resp):
+    g3_id = 0x11
+    g3_name = 'HOSTIF-NVM'
+    def decode(self, msg):
+        super().decode(msg)
+        fmt = "<BH"
+        offset = 1
+        raw_fields = struct.unpack_from(fmt, msg['data'], offset)
+        offset = offset + struct.calcsize(fmt)
+        try:
+            self.fields['status'] = G3C.G3_RESULTS[raw_fields[0]]
+        except KeyError:
+            logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
+        self.fields['length'] = raw_fields[1]
+        if self.fields['length'] > 0:
+            if self.fields['length'] in [*G3C.G3LIB_VALUE_FORMAT]:
+                raw_data = struct.unpack_from(G3C.G3LIB_VALUE_FORMAT[self.fields['length']], msg['data'], offset)
+            else:
+                raw_data = struct.unpack_from(f"<{self.fields['length']}s", msg['data'], offset)
+            self.fields['data'] = raw_data[0]
+
+    def pr_decode(self):
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
+
 # Datasheet pg 56
 class DBGToolResp(G3Resp):
     g3_id = 0x15
@@ -180,8 +216,8 @@ class G3GetResp(G3Resp):
         self.fields['index'] = raw_fields[2]
         self.fields['length'] = raw_fields[3]
         if self.fields['length'] > 0:
-            if self.fields['length'] in [*G3C.G3LIB_PIB_VALUE_FORMAT]:
-                raw_data = struct.unpack_from(G3C.G3LIB_PIB_VALUE_FORMAT[self.fields['length']], msg['data'], 10)
+            if self.fields['length'] in [*G3C.G3LIB_VALUE_FORMAT]:
+                raw_data = struct.unpack_from(G3C.G3LIB_VALUE_FORMAT[self.fields['length']], msg['data'], 10)
             else:
                 raw_data = struct.unpack_from(f"<{self.fields['length']}s", msg['data'], 10)
             self.raw_fields.append(raw_data[0])
