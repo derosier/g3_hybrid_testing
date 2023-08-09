@@ -497,7 +497,6 @@ def record_stats(activity_name, client_info, stats):
     results["valid_bps"] = valid_bps
     results["lost_packets"] = lost
     results["srv_id"] = str(client_info['srv_id'])
-    results["addr"] = str(client_info['addr'])
     results["send_count"] = stats['send_count']
     results["nacked_count"] = stats['nacked_count']
     results["ping_count"] = stats['ping_count']
