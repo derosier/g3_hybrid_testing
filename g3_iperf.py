@@ -992,10 +992,11 @@ def close_connection(device, connid, sent_count):
     logging.debug("    close_connection()")
     done_packet = encode_done_packet(sent_count)
     done_count = 0
-    while done_count < DONE_COUNT_PACKETS:
-        (send_ok, _) = send_udp(device, connid, 1, done_packet)
-        if send_ok:
-            done_count = done_count + 1
+    while done_count < DONE_COUNT_PACKETS and _G_running:
+        (send_ok, status) = send_udp(device, connid, 1, done_packet)
+        if not send_ok and status == 'timed out':
+            logging.error("Timeout when sending DONE packet.")
+        done_count = done_count + 1
 
 # The purpose of the client is to send iperf packets and rx the response back from the server.
 # Basically in sequence:
