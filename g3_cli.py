@@ -142,7 +142,6 @@ def main():
     baudrate = args.baud
     logging.info(f'Using port {port} at baud {baudrate}')
 
-    signal.signal(signal.SIGINT, shutdown_handler)
     logging.debug(f"Registered messages for decode: {g3_comms.g3_msgs.msg_decode_list}")
     logging.debug(f"Registered commands to tx: {g3_comms.g3_msgs.msg_cmds.keys()}")
     device = serial.Serial(port, baudrate=baudrate, timeout=0)
@@ -160,9 +159,11 @@ def main():
     rx_thread.start()
 
     if args.dump and not args.interactive:
+        signal.signal(signal.SIGINT, shutdown_handler)
         print("--dump enabled, enter ^C to exit")
 
     if not args.cmd and not args.interactive:
+        signal.signal(signal.SIGINT, shutdown_handler)
         print("No command, in dump mode, enter ^C to exit")
 
     # connman.init_setup() does commands and expects responses. It is unable to work unless we do
@@ -187,6 +188,8 @@ def main():
             try:
                 user_input = input('-> ')
             except EOFError: # This is ^d
+                user_input = 'quit'
+            except KeyboardInterrupt: # ^c
                 user_input = 'quit'
 
             # Handle a couple of "commands" without adding them to our parser.
