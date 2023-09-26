@@ -824,7 +824,7 @@ def do_server(device):
 ##  Client stuff
 ####################################################################################################
 
-def init_board_client(device, media):
+def init_board_client(device):
     set_hook(dev_start_callback, ['G3BOOT-DEV-START'])
     set_hook(data_rx_client_callback, ['G3UDP-DATA.Ind'])
     set_hook(data_rx_client_callback, ['META-ERROR'])
@@ -864,11 +864,6 @@ def init_board_client(device, media):
     if not check_status_ok(_G_returned_dev_start):
         logging.error("G3BOOT-DEV-START unsuccessful.")
         return False
-
-    if media == 'rf':
-        set_media(device, g3_comms.g3_consts.G3_MEDIA_RF)
-    elif media == 'plc':
-        set_media(device, g3_comms.g3_consts.G3_MEDIA_PLC)
 
     print("Client start was successful.")
 
@@ -1092,14 +1087,24 @@ def main():
     rx_thread = threading.Thread(target=rx_protocol.run)
     rx_thread.start()
 
+    # Initialize the board - this is server or client specific
     init_ret = False
     if args.server:
         init_ret = init_board_server(device)
     else:
         msg_buffer = MSG_DATA[:size]
-        init_ret = init_board_client(device, args.media)
+        init_ret = init_board_client(device)
 
-    if init_ret:
+    # Force media
+    media_ok = True  # default to OK, because we might not want to set the media
+    if args.media == 'rf':
+        (media_ok, _) = set_media(device, g3_comms.g3_consts.G3_MEDIA_RF)
+    elif args.media == 'plc':
+        (media_ok, _) = set_media(device, g3_comms.g3_consts.G3_MEDIA_PLC)
+
+
+    # Main body
+    if init_ret and media_ok:
         # connman.init_setup() does commands and expects responses. It is unable to work unless we do
         # it after the rx_thread starts.
         connman.init_setup(device)
