@@ -600,11 +600,6 @@ def init_board_server(device):
     if not hw_reset(device):
         return False
 
-    # 2.5 CHANGE UART BAUDRATE
-    (send_ok, _) = set_speed(device, args.speed)
-    if not send_ok:
-        return False
-
     # 3. SWRESET to coordinator
     _G_wait_srv_start.clear()
     cmd_args = argparse.Namespace()
@@ -834,12 +829,6 @@ def init_board_client(device):
 
     # 2. HWRESET
     if not hw_reset(device):
-        return False
-
-
-    # 2.5 CHANGE UART BAUDRATE
-    (send_ok, _) = set_speed(device, args.speed)
-    if not send_ok:
         return False
 
     # 3. SWRESET to coordinator
@@ -1102,9 +1091,11 @@ def main():
     elif args.media == 'plc':
         (media_ok, _) = set_media(device, g3_comms.g3_consts.G3_MEDIA_PLC)
 
+    # Change UART baudrate
+    (speed_ok, _) = set_speed(device, args.speed)
 
     # Main body
-    if init_ret and media_ok:
+    if init_ret and media_ok and speed_ok:
         # connman.init_setup() does commands and expects responses. It is unable to work unless we do
         # it after the rx_thread starts.
         connman.init_setup(device)
@@ -1118,10 +1109,10 @@ def main():
             exit_clean()
 
     # Cleanup and quit
+    set_speed(device, baudrate) # restore to whatever speed we started with
     if args.media != 'all':
         set_media(device, g3_comms.g3_consts.G3_MEDIA_ALL)
 
-    set_speed(device, baudrate) # restore to whatever speed we started with
     g3_comms.g3_rx.G3Rx.quit()
     rx_thread.join()
 
