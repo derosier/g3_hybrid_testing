@@ -4,6 +4,7 @@ import logging
 import argparse
 import threading
 import signal
+import time
 
 import serial
 
@@ -27,6 +28,7 @@ parser.add_argument("-c", "--count", type=int, default=0, help="Number of times 
 parser.add_argument("-t", "--timeout", type=int, default=5, help="Command wait for response timeout, default 5 seconds.")
 parser.add_argument("-i", "--interactive", action="store_true", help="Do an interactive cli session.")
 parser.add_argument("-n", "--dryrun", action="store_true", help="Process but don't send messages.")
+parser.add_argument("-a", "--pass_through", action="store_true", help="Set PCM in pass-through mode")
 
 # The g3_cli wants to print messages using the default pr_decode() function of the class, so
 # set the setting that makes that happen
@@ -137,6 +139,12 @@ def main():
     global args
     logging.debug("*** Starting cli")
     logging.debug(f"args: {args}")
+
+    if args.pass_through:
+        logging.info("Setting pass-through")
+        device = serial.Serial(args.port, baudrate=115200, timeout=0)
+        device.write( "g3_pass_through\r".encode('utf-8'))
+        time.sleep(2)
 
     port = args.port
     baudrate = args.baud
