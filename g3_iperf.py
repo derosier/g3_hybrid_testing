@@ -121,6 +121,8 @@ group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument("-s", "--server", action="store_true", help="Run as a server.")
 group.add_argument("-c", "--client", type=int, help="Run as a client and target the given short address.")
 parser.add_argument("-a", "--activity", help="Unique name for experiment with same metadata.")
+parser.add_argument("-P", "--pcm", action="store_true", help="Set PCM into pass-through mode.")
+
 
 # Instantiate a global instance of every response we want to process on Rx
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
@@ -1066,9 +1068,22 @@ def main():
     # Setup the serial port to our device
     port = args.port
     baudrate = args.baud
-    logging.debug(f'Using port {port} at baud {baudrate}')
+    if args.pcm:
+        baudrate = 115200
+        logging.warning(f'Using port {port} at PCM baud {baudrate}')
+    else:
+        logging.debug(f'Using port {port} at baud {baudrate}')
     device = serial.Serial(port, baudrate=baudrate, timeout=0)
     logging.debug(f"Opened serial port {device.name}")
+
+    if args.pcm:
+        logging.warning("Setting up PCM passthrough")
+        device.write( "g3_pass_through\r".encode('utf-8'))
+        time.sleep(2)
+        baudrate = args.baud
+        logging.warning(f'PCM setup done, changing to baud {baudrate}')
+        device.baudrate = baudrate
+        time.sleep(1)
 
     # Setup our Rx processing
     logging.debug(f"Registered messages for decode: {g3_comms.g3_msgs.msg_decode_list}")
@@ -1115,6 +1130,12 @@ def main():
 
     g3_comms.g3_rx.G3Rx.quit()
     rx_thread.join()
+
+    if args.pcm:
+        device.baudrate = 115200
+        logging.warning("Cleaning up PCM passthrough")
+        device.write( b'\x03\x03\0x030x0d') # 3 ^c + a \r
+        device.baudrate = baudrate
 
 if __name__ == "__main__":
     main()
