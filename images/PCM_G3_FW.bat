@@ -20,8 +20,8 @@ pause
 echo.
 
 mode %DEFAULT_COMM% BAUD=115200 PARITY=n DATA=8
-echo "g3_fw" > %DEFAULT_COMM%
-.\image_loader_st8500.exe --port %DEFAULT_COMM% --baudrate 115200 --program_SPI_Flash --pe %PE_image_dl% --rte %RTE_image_dl%
+echo g3_pass_through > %DEFAULT_COMM%
+.\image_loader_st8500.exe --port %DEFAULT_COMM% --baudrate 38400 --program_SPI_Flash --pe %PE_image_dl% --rte %RTE_image_dl%
 
 echo.
 pause
