@@ -28,7 +28,7 @@ parser.add_argument("-c", "--count", type=int, default=0, help="Number of times 
 parser.add_argument("-t", "--timeout", type=int, default=5, help="Command wait for response timeout, default 5 seconds.")
 parser.add_argument("-i", "--interactive", action="store_true", help="Do an interactive cli session.")
 parser.add_argument("-n", "--dryrun", action="store_true", help="Process but don't send messages.")
-parser.add_argument("-a", "--pass_through", action="store_true", help="Set PCM in pass-through mode")
+parser.add_argument("-P", "--pcm", action="store_true", help="Set PCM in pass-through mode.")
 
 # The g3_cli wants to print messages using the default pr_decode() function of the class, so
 # set the setting that makes that happen
@@ -140,20 +140,27 @@ def main():
     logging.debug("*** Starting cli")
     logging.debug(f"args: {args}")
 
-    if args.pass_through:
-        logging.info("Setting pass-through")
-        device = serial.Serial(args.port, baudrate=115200, timeout=0)
-        device.write( "g3_pass_through\r".encode('utf-8'))
-        time.sleep(2)
-
     port = args.port
     baudrate = args.baud
-    logging.info(f'Using port {port} at baud {baudrate}')
+    if args.pcm:
+        baudrate = 115200
+        logging.info(f'Using port {port} at PCM baud {baudrate}')
+    else:
+        logging.info(f'Using port {port} at baud {baudrate}')
 
     logging.debug(f"Registered messages for decode: {g3_comms.g3_msgs.msg_decode_list}")
     logging.debug(f"Registered commands to tx: {g3_comms.g3_msgs.msg_cmds.keys()}")
     device = serial.Serial(port, baudrate=baudrate, timeout=0)
     logging.info(f"Opened serial port {device.name}")
+
+    if args.pcm:
+        logging.info("Setting up PCM passthrough")
+        device.write( "g3_pass_through\r".encode('utf-8'))
+        time.sleep(2)
+        baudrate = args.baud
+        logging.info(f'PCM setup done, changing to baud {baudrate}')
+        device.baudrate = baudrate
+        time.sleep(1)
 
     if args.interactive:
         args.dump = True
@@ -225,6 +232,12 @@ def main():
 
     # Cleanup and quit
     rx_thread.join()
+
+    if args.pcm:
+        device.baudrate = 115200
+        logging.info("Cleaning up PCM passthrough")
+        device.write( b'\x03\x03\0x030x0d') # 3 ^c + a \r
+        device.baudrate = baudrate
 
 if __name__ == "__main__":
     main()
