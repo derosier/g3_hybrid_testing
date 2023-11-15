@@ -124,6 +124,7 @@ parser.add_argument("-a", "--activity", help="Unique name for experiment with sa
 parser.add_argument("-P", "--pcm", action="store_true", help="Set PCM into pass-through mode.")
 parser.add_argument("-T", "--time", type=int, default=PING_MAX_TIME, help="Time to run the test for, default 60 seconds.")
 parser.add_argument("-i", "--interval", type=int, default=60, help="Interim reporting interval, default 60 seconds.")
+parser.add_argument("-r", "--rate", type=int, default=0, help="Rate to send pings at, in seconds; default 0==as fast as possible.")
 
 # Instantiate a global instance of every response we want to process on Rx
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
@@ -1005,6 +1006,10 @@ def do_iperfs(device, connid, session_info, stats):#pylint: disable=unused-argum
             i_end = (interval_start - start_time)/NS_IN_SEC
             print(f"\n[{i_start:.1f} - {i_end:.1f}]\t{interval_bytes} bytes\t{interval_throughput:.1f} Bps")
 
+        # If we wanted to throttle our rate, then sleep between packets
+        if args.rate > 0:
+            time.sleep(args.rate)
+
         # end condition is either sent our max packets OR args.time seconds.
         # TODO: make this configurable
         if packet_num > MSG_MAX_PACKETS or time_elapsed(args.time, stats['start_time_ns']):
@@ -1085,6 +1090,10 @@ def main():
     size = args.size
     if size > MSG_LEN or size <= 0:
         logging.error(f"Invalid packet size selected {size}")
+        sys.exit(1)
+
+    if args.rate >= args.time:
+        logging.error(f"Invalid ping rate selected {args.rate}")
         sys.exit(1)
 
     # Give user a warning about failures to log data
