@@ -30,10 +30,6 @@ parser.add_argument("-i", "--interactive", action="store_true", help="Do an inte
 parser.add_argument("-n", "--dryrun", action="store_true", help="Process but don't send messages.")
 parser.add_argument("-P", "--pcm", action="store_true", help="Set PCM in pass-through mode.")
 
-# The g3_cli wants to print messages using the default pr_decode() function of the class, so
-# set the setting that makes that happen
-g3_comms.g3_msgs.print_msg = True
-
 # Instantiate a global instance of every response we want to process on Rx
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.UARTBaudSetResp())
@@ -184,6 +180,12 @@ def main():
     # connman.init_setup() does commands and expects responses. It is unable to work unless we do
     # it after the rx_thread starts.
     connman.init_setup(device)
+
+    # The g3_cli wants to print messages using the default pr_decode() function of the class, so
+    # set the setting that makes that happen. We didn't set it before so the connman init doesn't
+    # spam us on startup.
+    g3_comms.g3_msgs.print_msg = True
+
 
     while True:
         # Now that we can Rx responses, now process and run commands
