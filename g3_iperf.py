@@ -558,8 +558,8 @@ def print_stats(side, client_info, stats):
         print(f"Time: {elapsed_s}")
         lost = stats['send_count'] - stats['resp_count']
         print(f"Lost packets: {lost}")
-        print(f"Total throughput bytes-per-second: {total_bps}")
-        print(f"Valid throughput bytes-per-second: {valid_bps}")
+        print(f"Total throughput bytes-per-second: {total_bps:.3f}")
+        print(f"Valid throughput bytes-per-second: {valid_bps:.3f}")
     else: # server
         print(f"iperf session results from client at {client_info['addr']}")
         print(f"Arrived count: {stats['ping_count']}")
