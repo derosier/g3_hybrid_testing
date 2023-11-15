@@ -52,7 +52,7 @@ MSG_DIR_OUT = 0x01
 MSG_DIR_RESP = 0x02
 
 PING_MAX_TIME = 60
-MSG_MAX_PACKETS = 1000
+MSG_MAX_PACKETS = 10000
 DONE_COUNT_PACKETS = 3
 
 NS_IN_SEC = 1000000000
@@ -122,7 +122,7 @@ group.add_argument("-s", "--server", action="store_true", help="Run as a server.
 group.add_argument("-c", "--client", type=int, help="Run as a client and target the given short address.")
 parser.add_argument("-a", "--activity", help="Unique name for experiment with same metadata.")
 parser.add_argument("-P", "--pcm", action="store_true", help="Set PCM into pass-through mode.")
-
+parser.add_argument("-T", "--time", type=int, default=PING_MAX_TIME, help="Time to run the test for, default 60 seconds.")
 
 # Instantiate a global instance of every response we want to process on Rx
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
@@ -968,8 +968,9 @@ def do_iperfs(device, connid, session_info, stats):#pylint: disable=unused-argum
         handle = (handle + 1) % 100 # max value is 0xff, but we don't really care if we use all
 
         # end condition is either sent our max packets OR PING_MAX_TIME seconds.
+        # end condition is either sent our max packets OR args.time seconds.
         # TODO: make this configurable
-        if packet_num > MSG_MAX_PACKETS or time_elapsed(PING_MAX_TIME, stats['start_time_ns']):
+        if packet_num > MSG_MAX_PACKETS or time_elapsed(args.time, stats['start_time_ns']):
             done = True
 
 # We're going to make sure the server receives this, but not bother having it respond.  Some 10% or
