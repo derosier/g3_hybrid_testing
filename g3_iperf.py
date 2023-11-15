@@ -123,6 +123,7 @@ group.add_argument("-c", "--client", type=int, help="Run as a client and target 
 parser.add_argument("-a", "--activity", help="Unique name for experiment with same metadata.")
 parser.add_argument("-P", "--pcm", action="store_true", help="Set PCM into pass-through mode.")
 parser.add_argument("-T", "--time", type=int, default=PING_MAX_TIME, help="Time to run the test for, default 60 seconds.")
+parser.add_argument("-i", "--interval", type=int, default=60, help="Interim reporting interval, default 60 seconds.")
 
 # Instantiate a global instance of every response we want to process on Rx
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
@@ -709,6 +710,9 @@ def do_echos(device, client_info, stats):
     ping_ok = False
     handle = 1
     _G_wait_data.clear()
+    last_bytes = 0
+    interval_start = time.monotonic_ns()
+    start_time = interval_start
     while not done and _G_running:
         if not _G_wait_data.wait(SRV_ECHO_TIMEOUT):
             continue # timeout here is expected
@@ -775,6 +779,21 @@ def do_echos(device, client_info, stats):
             handle = (handle + 1) % 100 # max value is 0xff, but we don't really care if we use all
         else:
             send_nack(device, client_info, packet_num=packet['packet_num'])
+
+        if time_elapsed(args.interval, interval_start):
+            # Note this is mostly the same code as in do_iperfs(). I didn't create a function because:
+            # 1. what we use for bytes is slightly different
+            # 2. function calls are expensive, and this is the fast-path. So basically I'm
+            #    "unrolling" the function call.
+            last_start = interval_start
+            interval_start = time.monotonic_ns()
+            elapsed_s = (interval_start - last_start)/NS_IN_SEC
+            interval_bytes = stats['rx_bytes'] - last_bytes
+            last_bytes = stats['rx_bytes']
+            interval_throughput = interval_bytes/elapsed_s
+            i_start = (last_start - start_time)/NS_IN_SEC
+            i_end = (interval_start - start_time)/NS_IN_SEC
+            print(f"\n[{i_start:.1f} - {i_end:.1f}]\t{interval_bytes} bytes\t{interval_throughput:.1f} Bps")
 
 
 # The purpose of the server is to get iperf packets and echo them back. Basically in sequence:
@@ -932,6 +951,9 @@ def do_iperfs(device, connid, session_info, stats):#pylint: disable=unused-argum
     packet_num = 1 # we're going to do a 1 base so we can distinguish between 0 and not.
     handle = 1
     done = False
+    last_bytes = 0
+    interval_start = time.monotonic_ns()
+    start_time = interval_start
     while not done and _G_running:
         # We're going to do this purely synchronously, which might be slow. Send ping, wait for pong.
         # It will be really slow if we don't get a packet back because our timeout is 5 seconds (see
@@ -967,7 +989,22 @@ def do_iperfs(device, connid, session_info, stats):#pylint: disable=unused-argum
         packet_num = packet_num + 1
         handle = (handle + 1) % 100 # max value is 0xff, but we don't really care if we use all
 
-        # end condition is either sent our max packets OR PING_MAX_TIME seconds.
+        # Do interval status prints if we asked for that
+        if args.interval < args.time and time_elapsed(args.interval, interval_start):
+            # Note this is mostly the same code as in do_echos(). I didn't create a function because:
+            # 1. what we use for bytes is slightly different
+            # 2. function calls are expensive, and this is the fast-path. So basically I'm
+            #    "unrolling" the function call.
+            last_start = interval_start
+            interval_start = time.monotonic_ns()
+            elapsed_s = (interval_start - last_start)/NS_IN_SEC
+            interval_bytes = stats['send_bytes'] + stats['rx_bytes'] - last_bytes
+            last_bytes = stats['send_bytes'] + stats['rx_bytes']
+            interval_throughput = interval_bytes/elapsed_s
+            i_start = (last_start - start_time)/NS_IN_SEC
+            i_end = (interval_start - start_time)/NS_IN_SEC
+            print(f"\n[{i_start:.1f} - {i_end:.1f}]\t{interval_bytes} bytes\t{interval_throughput:.1f} Bps")
+
         # end condition is either sent our max packets OR args.time seconds.
         # TODO: make this configurable
         if packet_num > MSG_MAX_PACKETS or time_elapsed(args.time, stats['start_time_ns']):
