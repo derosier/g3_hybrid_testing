@@ -658,6 +658,7 @@ class UDPConnSetCmd(G3Cmd):
     def _add_parser(self, subparsers):
         parser = subparsers.add_parser('connset', help='Setup an UDP connection')
         parser.add_argument('--addr', default=-1, type=int, help="Short address, -1 (default) to accept from all")
+        parser.add_argument('--pan', type=int, help="PAN address")
         parser.add_argument('--rport', default=0, type=int, help='Remote port, 0 (default) to accept from any')
         parser.add_argument('--port', type=int, help='Local port')
         parser.add_argument('--connid', type=int, help='Connection id')
@@ -670,6 +671,13 @@ class UDPConnSetCmd(G3Cmd):
             self.fields['addr'] = -1
         else:
             self.fields['addr'] = args.addr & 0xffff
+        try:
+            if args.pan:
+                self.fields['pan'] = args.pan & 0xffff
+            else:
+                self.fields['pan'] = G3C.G3_DEFAULT_PAN
+        except AttributeError:
+            self.fields['pan'] = G3C.G3_DEFAULT_PAN
         self.fields['remote_port'] = args.rport & 0xffff
         if args.port >= 0:
             self.fields['local_port'] = args.port & 0xffff
@@ -689,7 +697,7 @@ class UDPConnSetCmd(G3Cmd):
         if self.fields['addr'] == -1:
             self.fields['ipv6addr'] = bytes.fromhex("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00")
         else:
-            self.fields['ipv6addr'] = g3_comms.g3_msgs.hi_ipv6_set_ipaddr(self.fields['addr'])
+            self.fields['ipv6addr'] = g3_comms.g3_msgs.hi_ipv6_set_ipaddr(self.fields['addr'], self.fields['pan'])
         logging.debug(f"set encodode ipv6: {self.fields['ipv6addr']}")
         raw = struct.pack("<B16sHH", self.fields['conn_id'], self.fields['ipv6addr'],
                                      self.fields['remote_port'], self.fields['local_port'])
@@ -729,15 +737,23 @@ class ICMPEchoCmd(G3Cmd):
     def _add_parser(self, subparsers):
         parser = subparsers.add_parser('echo', help='Send a ping to remote --addr')
         parser.add_argument('--addr', required=True, type=int, help='Short address')
+        parser.add_argument('--pan', type=int, help="PAN address")
         parser.add_argument('--handle', required=True, type=int, help='ICMP Echo handle')
         return parser
 
     def parse_args(self, args):
         # short addresses are 16 bit, just force the bottom bits and call it good.
         self.fields['addr'] = args.addr & 0xffff
+        try:
+            if args.pan:
+                self.fields['pan'] = args.pan & 0xffff
+            else:
+                self.fields['pan'] = G3C.G3_DEFAULT_PAN
+        except AttributeError:
+            self.fields['pan'] = G3C.G3_DEFAULT_PAN
         self.fields['handle'] = args.handle
 
     def encode_cmd(self):
-        self.fields['ipv6addr'] = g3_comms.g3_msgs.hi_ipv6_set_ipaddr(self.fields['addr'])
+        self.fields['ipv6addr'] = g3_comms.g3_msgs.hi_ipv6_set_ipaddr(self.fields['addr'], self.fields['pan'])
         raw = struct.pack("<16sBH", self.fields['ipv6addr'], self.fields['handle'], 0)
         return raw

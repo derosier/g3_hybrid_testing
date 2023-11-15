@@ -1,5 +1,7 @@
 # Useful constants maps
 
+G3_DEFAULT_PAN = 30749
+
 # Table 12. G3 platform modes. pg 15
 G3_MODE = {
     'phy': 0,

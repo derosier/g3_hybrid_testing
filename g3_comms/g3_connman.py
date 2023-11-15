@@ -73,8 +73,8 @@ class ConnMan():
             self.mac = fields['mac']
 
     # data access and helper methods
-    def _add_conn(self, connid, d_short_addr, d_port, l_port):
-        self.connections[connid] = {'remote_addr':d_short_addr, 'remote_port':d_port, 'local_port': l_port}
+    def _add_conn(self, connid, d_short_addr, d_pan, d_port, l_port): # pylint: disable=too-many-arguments
+        self.connections[connid] = {'remote_addr':d_short_addr, 'pan': d_pan, 'remote_port':d_port, 'local_port': l_port}
 
     def _del_conn(self, connid):
         try:
@@ -123,6 +123,7 @@ class ConnMan():
     def set_connection(self, device, connid, addr, remote_port, local_port): #pylint: disable=too-many-arguments
         args = argparse.Namespace()
         args.addr = addr
+        args.pan = self.pan
         args.rport = remote_port
         args.port = local_port
         args.connid = connid
@@ -142,6 +143,7 @@ class ConnMan():
                 break
             if self.valid_connection_fields(conn):
                 self._add_conn(i, g3_comms.g3_msgs.hi_short_addr_from_ipaddr(conn['remote_addr']),
+                                 g3_comms.g3_msgs.hi_pan_from_ipaddr(conn['remote_addr']),
                                  conn['remote_port'], conn['local_port'])
 
     # cli commands
@@ -150,9 +152,10 @@ class ConnMan():
 
     def print_conn(self, conn):
         d_s_a = self.connections[conn]['remote_addr']
+        d_pan = self.connections[conn]['pan']
         d_p = self.connections[conn]['remote_port']
         l_p = self.connections[conn]['local_port']
-        d_ip = binascii.hexlify(g3_comms.g3_msgs.hi_ipv6_set_ipaddr(self.connections[conn]['remote_addr'], self.pan), ':', 2).decode('utf-8')
+        d_ip = binascii.hexlify(g3_comms.g3_msgs.hi_ipv6_set_ipaddr(self.connections[conn]['remote_addr'], d_pan), ':', 2).decode('utf-8')
         print(f"{conn:2} | {d_s_a:9} | {d_ip:39} | {d_p:9} | {l_p:10}")
 
     def print_conn_list(self):
@@ -177,7 +180,7 @@ class ConnMan():
                 logging.error(f"Error when setting connection, status: {fields['status']}")
                 new_id = None
             else:
-                self._add_conn(new_id, addr, remote_port, local_port)
+                self._add_conn(new_id, addr, self.pan, remote_port, local_port)
         else:
             logging.warning("Unable to add new connection.")
         return new_id

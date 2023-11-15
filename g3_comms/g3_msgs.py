@@ -1,4 +1,5 @@
 import logging
+import g3_comms.g3_consts as G3C
 
 msg_decode_list = []
 msg_cmds = {}
@@ -30,7 +31,7 @@ def parse_data(argdata):
         data = bytes(argdata, 'utf-8')
     return data
 
-def hi_ipv6_set_ipaddr(short_addr, pan_id=30749):
+def hi_ipv6_set_ipaddr(short_addr, pan_id=G3C.G3_DEFAULT_PAN):
     logging.debug(f"encoding ipv6 address from short {short_addr} on pan {pan_id}")
     if short_addr < 0:
         logging.debug("short_addr < 0, encoding a zero ipv6")
@@ -54,6 +55,8 @@ def hi_short_addr_from_ipaddr(ipv6):
 
 def hi_pan_from_ipaddr(ipv6):
     logging.debug(f"decoding pan from ipv6 address {ipv6}")
+    if ipv6 == bytes.fromhex("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"):
+        return -1
     pan = int.from_bytes(ipv6[8:10], "big")
     logging.debug(f"decoded pan {pan}")
     return pan
