@@ -83,6 +83,7 @@ class G3Rx():
 
             syncro = b'\x16\x16'
             computed_crc = crc16.bit_by_bit_fast(syncro + header + msg['data'] + sec_tag)
+            msg['computed_crc'] = computed_crc
             logging.debug(f"CRC computed {computed_crc:04x}, CRC Rx {msg['crc']:04x}")
             if computed_crc != msg['crc']:
                 msg['rx_status'] = 'BAD CRC'
