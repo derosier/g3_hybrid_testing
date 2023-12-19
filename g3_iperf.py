@@ -639,7 +639,7 @@ def wait_for_connection(device, client_info):
         if not _G_wait_data.wait(SRV_START_TIMEOUT):
             continue # timeout here is expected
         if not _G_returned_data['valid_msg']:
-            logging.error("Data Rx but invalid packet: {_G_returned_data['rx_status']}")
+            logging.error(f"wait_for_connection - Data Rx but invalid packet: {_G_returned_data['rx_status']}")
             continue
         packet = decode_packet(_G_returned_data['data'])
         if valid_start_packet(packet):
@@ -723,7 +723,7 @@ def do_echos(device, client_info, stats):
         raw_msg = _G_returned_data
         _G_wait_data.clear()
         if not raw_msg['valid_msg']:
-            print(f"Data Rx but invalid packet: {raw_msg['rx_status']}")
+            print(f"do_echos - Data Rx but invalid packet: {raw_msg['rx_status']}")
             send_nack(device, client_info)
             stats['rx_count'] = stats['rx_count'] + 1
             stats['rx_bytes'] = stats['rx_bytes'] + len(raw_msg['data'])
@@ -894,7 +894,7 @@ def setup_connection(device, connid, session_info):
         logging.error("Never received response from server, timeout.")
         return False
     if not _G_returned_data['valid_msg']:
-        print("Data Rx but invalid packet: {_G_returned_data['rx_status']}")
+        print(f"setup_connection - Data Rx but invalid packet: {_G_returned_data['rx_status']}")
         return False
     session_info['start_response'] = _G_returned_data
     response = decode_packet(_G_returned_data['data'])
@@ -968,7 +968,7 @@ def do_iperfs(device, connid, session_info, stats):#pylint: disable=unused-argum
             stats['send_bytes'] = stats['send_bytes'] + len(ping_packet)
             if _G_wait_data.wait(PING_RESP_TIMEOUT):
                 if not _G_returned_data['valid_msg']:
-                    print("Data Rx but invalid packet: {_G_returned_data['rx_status']}")
+                    print(f"do_iperfs - Data Rx but invalid packet: {_G_returned_data['rx_status']}")
                     # even in the invalid response case, we move on to the next one
                 else:
                     pong_msg = _G_returned_data
