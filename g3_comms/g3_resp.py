@@ -727,6 +727,9 @@ class UDPDataInd(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
+    def dbg_pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
 # Datasheet pg 92
 class UDPConnSet(G3Resp):
     g3_id = 0xd4
