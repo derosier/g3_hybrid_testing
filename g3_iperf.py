@@ -281,7 +281,7 @@ def set_media(device, value):
     fields = g3_comms.g3_tx.send_and_wait(device, set_cmd)
     set_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
     if not check_status_ok(fields):
-        logging.error("Error setting media to {value}.")
+        logging.error(f"Error setting media to {value}.")
         return (False, fields['status'])
     return (True, fields['status'])
 
@@ -851,20 +851,35 @@ def init_board_client(device):
 
     # 2. HWRESET
     if not hw_reset(device):
-        return False
+        if args.pcm:
+            logging.warning("PCM mode is ignoring HOSTIF-HWRESET response not found. Continuing board setup.")
+        else:
+            return False
 
     # 3. SWRESET to coordinator
-    _G_wait_dev_start.clear()
-    cmd_args = argparse.Namespace()
-    cmd_args.bandplan = 'FCC'
-    cmd_args.devicetype = 'device'
-    cmd_args.mode = 'ipv6_boot'
-    swreset_cmd = g3_cmd.SWResetCmd()
-    swreset_cmd.parse_args(cmd_args)
-    swreset_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
-    fields = g3_comms.g3_tx.send_and_wait(device, swreset_cmd)
-    swreset_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
-    if not check_status_ok(fields):
+    retry_count = 1
+    if args.pcm:
+        retry_count = 5
+    swreset_ok = False
+    while retry_count:
+        logging.warning(f"SWRESET try {retry_count}")
+        _G_wait_dev_start.clear()
+        cmd_args = argparse.Namespace()
+        cmd_args.bandplan = 'FCC'
+        cmd_args.devicetype = 'device'
+        cmd_args.mode = 'ipv6_boot'
+        swreset_cmd = g3_cmd.SWResetCmd()
+        swreset_cmd.parse_args(cmd_args)
+        swreset_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
+        fields = g3_comms.g3_tx.send_and_wait(device, swreset_cmd)
+        swreset_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
+        if check_status_ok(fields):
+            swreset_ok = True
+            break
+        retry_count = retry_count - 1
+        time.sleep(1)
+
+    if not swreset_ok:
         logging.error("G3LIB-SWRESET unsuccessful.")
         return False
 
@@ -1177,12 +1192,6 @@ def main():
 
     g3_comms.g3_rx.G3Rx.quit()
     rx_thread.join()
-
-    if args.pcm:
-        device.baudrate = 115200
-        logging.warning("Cleaning up PCM passthrough")
-        device.write( b'\x03\x03\0x030x0d') # 3 ^c + a \r
-        device.baudrate = baudrate
 
 if __name__ == "__main__":
     main()
