@@ -1169,7 +1169,11 @@ def main():
         (media_ok, _) = set_media(device, g3_comms.g3_consts.G3_MEDIA_PLC)
 
     # Change UART baudrate
-    (speed_ok, _) = set_speed(device, args.speed)
+    speed_ok = True
+    if args.pcm:
+        logging.warning(f'Forcing lower speed baud-rate of {baudrate} for PCM')
+    else:
+        (speed_ok, _) = set_speed(device, args.speed)
 
     # Main body
     if init_ret and media_ok and speed_ok:
