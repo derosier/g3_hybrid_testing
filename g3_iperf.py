@@ -119,6 +119,7 @@ parser.add_argument("-S", "--size", type=int, default=MSG_LEN, help=f"Number of 
 parser.add_argument("-m", "--media", default='all', choices=['all', 'plc', 'rf'], help="Select media to use. Default is both.")
 group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument("-s", "--server", action="store_true", help="Run as a server.")
+group.add_argument("-o", "--oneshotserver", action="store_true", help="Run as a server for a single client run.")
 group.add_argument("-c", "--client", type=int, help="Run as a client and target the given short address.")
 parser.add_argument("-a", "--activity", help="Unique name for experiment with same metadata.")
 parser.add_argument("-P", "--pcm", action="store_true", help="Set PCM into pass-through mode.")
@@ -834,6 +835,8 @@ def do_server(device):
             print('') # get a newline because we've been printing out the rx'd packet connection number to show progress
             finalize_accounting(stats)
             print_stats(MSG_DIR_RESP, client_info, stats)
+        if args.oneshotserver:
+            exit_clean()
 
     connman.del_connection(device, listen_connid)
 
@@ -1155,7 +1158,7 @@ def main():
 
     # Initialize the board - this is server or client specific
     init_ret = False
-    if args.server:
+    if args.server or args.oneshotserver:
         init_ret = init_board_server(device)
     else:
         msg_buffer = MSG_DATA[:size]
@@ -1183,7 +1186,7 @@ def main():
 
         print("Initialization complete")
         connman.print_info()
-        if args.server:
+        if args.server or args.oneshotserver:
             do_server(device)
         else:
             do_client(device)
