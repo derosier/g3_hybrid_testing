@@ -1,0 +1,33 @@
+msc {
+	c [label="Panel with Gateway"], d [label="Panel 2"];
+
+	c abox c [label="Start with `--gw` flag"];
+	c rbox c [label="Coordinator Panel starts \n in LCN mode"];
+	d abox d [label="Start when not paired"];
+	d rbox d [label="Panel 2 starts in Coordinator mode\n on Pairing Network"];
+	c abox c [label="Initiate Pairing Mode \n input Panel 2 SN"];
+	c rbox c [label="Coordinator Panel resets into Device on Pairing Network"];
+	c -> d [label="Joins Pairing Network"];
+	c => d [label="Requests Panel 2 Identification"];
+	d => c [label="Identification Metadata"];
+	c rbox c [label="Coordinator Panel validates ID"];
+	c rbox c [label="Coordinator Panel computes Session PSK if none already set"];
+	c => d [label="LCN network information\n{Session PSK, PAN ID}"];
+	d => c [label="LCN information confirmation"];
+	c => d [label="Network switch command"];
+	c rbox c [label="Coordinator Panel resets into Coordinator on LCN"];
+	c rbox c [label="Coordinator Panel creates NIC"];
+	d rbox d [label="Panel 2 resets into Device on LCN"];
+	d -> c [label="Panel 2 joins LCN"];
+	d rbox d [label="Panel 2 creates NIC"];
+	|||;
+	c :> d [label="Userspace applications send data"];
+	d :> c [label="Userspace applications send data"];
+	|||;
+	d abox d [label="Yank 120VAC power cord"];
+	d rbox d [label="Panel 2 fails over to RF"];
+	|||;
+	c :> d [label="Userspace applications send data over RF"];
+	d :> c [label="Userspace applications send data over RF"];
+	|||;
+}
