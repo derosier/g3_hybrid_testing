@@ -1,0 +1,11 @@
+msc {
+	plc [label="PLC"], st [label="ST8500"], c [label="g3_iperf.py"];
+
+	plc=>st [ label = "iperf ping packet" ];
+	st=>c   [ label = "UDP Data.Ind ping" ];
+	--- [ label = "g3_iperf.py python processing time"];
+	c=>st   [ label = "UDP Cmd pong" ];
+	st=>plc [ label = "iperf pong packet" ];
+	st->c   [ label = "UDP Cmd response" ];
+	
+}
