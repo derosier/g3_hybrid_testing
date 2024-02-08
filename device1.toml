@@ -1,0 +1,6 @@
+# local_comms.py config file for a Device
+
+[pcm]
+gateway = false
+uuid = "G3MOD-PCM-000A-01:JJ-9999-F4CH9"
+

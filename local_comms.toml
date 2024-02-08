@@ -1,0 +1,9 @@
+# Sample local_comms.py config file
+
+# The [pcm] section defines items that are about the PCM device. Generally this is what would
+# come from a PCM's own hardware or flash.
+[pcm]
+gateway = false # gateway can be false or true.  A `true` here indicates a Gateway is attached to this PCM and
+                # would be the Local Comms network Coordinator.  `false` are just Devices.
+uuid = "G3MOD-PCM-000A-01:JJ-9999-F4CH9" # The uuid is the part-number:serial-number.
+

@@ -1,0 +1,8 @@
+# local_comms.py config file for a Device
+
+# This second Device file is missing the Gateway element, to test what happens if
+# we are missing this key and to make sure local_comms.py handles this error.
+
+[pcm]
+uuid = "G3MOD-PCM-000A-01:JJ-9999-F4CHE"
+
