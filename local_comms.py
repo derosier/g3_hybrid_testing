@@ -42,6 +42,11 @@ def load_config(filename):
 
     return cfg
 
+def coordinator_main(panel_config):
+    logging.debug("### Started Coordinator")
+    while _G_running:
+        time.sleep(0.1)
+
 ####################################################################################################
 ##  MAIN
 ####################################################################################################
@@ -57,8 +62,15 @@ def main():
 
     logging.debug(f"Configuration loaded: {panel_config}")
 
-    while _G_running:
-        time.sleep(0.1)
+    if panel_config['panel_type'] == 'coordinator':
+        logging.debug("Designated as the Coordinator panel")
+        coordinator_main(panel_config)
+    elif panel_config['panel_type'] == 'device':
+        logging.debug("Designated as a device panel")
+        while _G_running:
+            time.sleep(0.1)
+    else:
+        logging.error(f"Invalid panel type: {panel_config['panel_type']}")
 
     logging.debug("*** Quitting Local Comms")
 
