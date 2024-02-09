@@ -18,10 +18,10 @@ import g3_comms.g3_rx
 import g3_comms.g3_tx
 import g3_comms.g3_msgs
 from g3_comms import g3_resp
-from g3_comms import g3_cmd
 import g3_comms.g3_connman
 from g3_comms.g3_crc import crc16
 import g3_comms.g3_consts
+from g3_comms import g3_lib
 
 default_port="/dev/ttyACM0"
 default_baudrate=115200
@@ -105,8 +105,6 @@ MSG_DATA = bytes.fromhex(
 )
 
 msg_buffer = bytes()
-
-print_progress = False
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-p", "--port", default=default_port, help=f"Serial port, default {default_port}")
@@ -224,85 +222,6 @@ def data_rx_client_callback(_, name, fields): # pylint: disable=unused-argument
     global _G_returned_data
     _G_returned_data = fields
     _G_wait_data.set()
-
-def set_hook(hook, name_list):
-    for msg in g3_comms.g3_msgs.msg_decode_list:
-        for name_msg in name_list:
-            if msg.g3_name == name_msg:
-                msg.set_hook(hook, None)
-
-def check_status_ok(fields):
-    try:
-        if not fields['status'] == 'G3_SUCCESS':
-            logging.debug(f"Check status error: {fields['status']}")
-            return False
-    except KeyError:
-        logging.debug("Check status error fields['status'] not found.")
-        fields['status'] = 'timed out'
-        return False
-    return True
-
-def hw_reset(device):
-    reset_cmd = g3_cmd.HWResetCmd()
-    reset_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
-    fields = g3_comms.g3_tx.send_and_wait(device, reset_cmd)
-    reset_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
-    try:
-        if not fields['error_code'] == 0:
-            logging.error("HOSTIF-HWRESET unsuccessful.")
-            return False
-    except KeyError:
-        logging.error("HOSTIF-HWRESET unsuccessful.")
-        return False
-    return True
-
-def set_speed(device, speed):
-    cmd_args = argparse.Namespace()
-    cmd_args.speed = speed
-    speed_cmd = g3_cmd.UARTBaudSetCmd()
-    speed_cmd.parse_args(cmd_args)
-    speed_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
-    fields = g3_comms.g3_tx.send_and_wait(device, speed_cmd)
-    speed_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
-    if not check_status_ok(fields):
-        logging.error("HOSTIF-BAUDRATESET unsuccessful.")
-        return (False, fields['status'])
-    device.baudrate = speed
-    logging.warning(f"Serial port baud rate updated to {speed}")
-    return (True, fields['status'])
-
-def set_media(device, value):
-    cmd_args = argparse.Namespace()
-    cmd_args.id = g3_comms.g3_consts.G3_LIB_PECHANNELCONFIG_ID
-    cmd_args.index = 0
-    cmd_args.data = value
-    set_cmd = g3_cmd.G3SetCmd()
-    set_cmd.parse_args(cmd_args)
-    set_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
-    fields = g3_comms.g3_tx.send_and_wait(device, set_cmd)
-    set_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
-    if not check_status_ok(fields):
-        logging.error(f"Error setting media to {value}.")
-        return (False, fields['status'])
-    return (True, fields['status'])
-
-def send_udp(device, connid, handle, packet):
-    cmd_args = argparse.Namespace()
-    logging.debug(f"send_udp to connection {connid}")
-    if print_progress:
-        print(f'{connid}', end='', flush=True)
-    cmd_args.connid = connid
-    cmd_args.handle = handle
-    cmd_args.bindata = packet
-    udp_cmd = g3_cmd.UDPData()
-    udp_cmd.parse_args(cmd_args)
-    udp_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
-    fields = g3_comms.g3_tx.send_and_wait(device, udp_cmd, timeout=5)
-    udp_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
-    if not check_status_ok(fields):
-        logging.error("G3UDP-DATA unsuccessful.")
-        return (False, fields['status'])
-    return (True, fields['status'])
 
 # Packet formats are all similar, we put all the fields for all the messages in there
 # and just ignore the ones that aren't relevant.
@@ -593,10 +512,10 @@ def print_stats(side, client_info, stats):
 # init board will do a reset and the relevant software reset
 def init_board_server(device):
     # 1. Setup hooks
-    set_hook(srv_start_callback, ['G3BOOT-SRV-START'])
-    set_hook(join_callback, ['G3BOOT-SRV-JOIN'])
-    set_hook(data_rx_server_callback, ['G3UDP-DATA.Ind'])
-    set_hook(data_rx_server_callback, ['META-ERROR'])
+    g3_lib.set_hook(srv_start_callback, ['G3BOOT-SRV-START'])
+    g3_lib.set_hook(join_callback, ['G3BOOT-SRV-JOIN'])
+    g3_lib.set_hook(data_rx_server_callback, ['G3UDP-DATA.Ind'])
+    g3_lib.set_hook(data_rx_server_callback, ['META-ERROR'])
 
     if args.noreset:
         return True
@@ -605,31 +524,20 @@ def init_board_server(device):
     if args.pcm:
         logging.debug("PCM mode does not issue HOSTIF-HWRESET. Continuing board setup.")
     else:
-        if not hw_reset(device):
+        if not g3_lib.hw_reset(device):
             logging.error("HWRESET failed.")
             return False
 
     # 3. SWRESET to coordinator
-    _G_wait_srv_start.clear()
-    cmd_args = argparse.Namespace()
-    cmd_args.bandplan = 'FCC'
-    cmd_args.devicetype = 'coordinator'
-    cmd_args.mode = 'ipv6_boot'
-    swreset_cmd = g3_cmd.SWResetCmd()
-    swreset_cmd.parse_args(cmd_args)
-    swreset_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
-    fields = g3_comms.g3_tx.send_and_wait(device, swreset_cmd)
-    swreset_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
-    if not check_status_ok(fields):
-        logging.error("G3LIB-SWRESET unsuccessful.")
-        return False
+    g3_lib.sw_reset(device, 'coordinator', 'ipv6_boot')
 
     # 4. Wait until we're reset
     # Indicator = Reply G3BOOT-SRV-START: {'error_code': 0, 'status': 'G3_SUCCESS'}
+    _G_wait_srv_start.clear()
     if not _G_wait_srv_start.wait(START_TIMEOUT):
         logging.error("Never received G3BOOT-SRV-START, timeout.")
 
-    if not check_status_ok(_G_returned_srv_start):
+    if not g3_lib.check_status_ok(_G_returned_srv_start):
         logging.error("G3BOOT-SRV-START unsuccessful.")
         return False
 
@@ -653,7 +561,7 @@ def wait_for_connection(device, client_info):
             client_info['max_num'] = packet['max_num']
             client_info['connid'] = connman.new_conn(device, packet['sender_id'], _G_returned_data['src_port'], SRV_UDP_PORT)
             start_response = encode_start_reponse(packet['max_num'])
-            (send_ok, status) = send_udp(device, client_info['connid'], 1, start_response)
+            (send_ok, status) = g3_lib.send_udp(device, client_info['connid'], 1, start_response)
             if not send_ok:
                 logging.error(f"Error sending start_response: {status}")
                 connman.del_connection(device, client_info['connid'])
@@ -703,7 +611,7 @@ def check_ping(packet, raw_msg, num, client_info, stats):
 
 def send_nack(device, client_info, expected=MSG_TYPE_PING, packet_num=0xffffffff):
     packet = encode_nack_packet(expected, packet_num)
-    (send_ok, status) = send_udp(device, client_info['connid'], 200, packet)
+    (send_ok, status) = g3_lib.send_udp(device, client_info['connid'], 200, packet)
     if not send_ok:
         logging.error(f"Error sending NACK: {status}")
 
@@ -767,7 +675,7 @@ def do_echos(device, client_info, stats):
         if ping_ok:
             # If we got this far, we have a 100% valid packet, now send the response
             resp_packet = encode_resp_packet(packet)
-            (send_ok, status) = send_udp(device, client_info['connid'], handle, resp_packet)
+            (send_ok, status) = g3_lib.send_udp(device, client_info['connid'], handle, resp_packet, print_progress=True)
             if not send_ok:
                 logging.error(f"Error sending response: {status}")
                 stats['send_error'] = stats['send_error'] + 1
@@ -817,7 +725,6 @@ def do_server(device):
 # Reply G3BOOT-SRV-GETPSK: {'error_code': 0, 'e_addr': 12336387418442792960, 'idp_len': 8, 'idp': (12336387418442792960, 8, b'\x00\x80\xe1\xff\xfe\xa63\xab\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')}
 # Reply G3BOOT-SRV-JOIN: {'error_code': 0, 'e_addr': 12336387418442792960, 'short_id': 1}
     global _G_running
-    global print_progress
     _G_running = True
     stats = {}
     client_info = {}
@@ -832,9 +739,7 @@ def do_server(device):
         if wait_for_connection(device, client_info):
             print("Got connection, doing PONG.")
             init_accounting(stats)
-            print_progress = True
             do_echos(device, client_info, stats)
-            print_progress = False
             connman.del_connection(device, client_info['connid'])
             print('') # get a newline because we've been printing out the rx'd packet connection number to show progress
             finalize_accounting(stats)
@@ -849,9 +754,9 @@ def do_server(device):
 ####################################################################################################
 
 def init_board_client(device):
-    set_hook(dev_start_callback, ['G3BOOT-DEV-START'])
-    set_hook(data_rx_client_callback, ['G3UDP-DATA.Ind'])
-    set_hook(data_rx_client_callback, ['META-ERROR'])
+    g3_lib.set_hook(dev_start_callback, ['G3BOOT-DEV-START'])
+    g3_lib.set_hook(data_rx_client_callback, ['G3UDP-DATA.Ind'])
+    g3_lib.set_hook(data_rx_client_callback, ['META-ERROR'])
 
     if args.noreset:
         return True
@@ -860,7 +765,7 @@ def init_board_client(device):
     if args.pcm:
         logging.debug("PCM mode does not issue HOSTIF-HWRESET. Continuing board setup.")
     else:
-        if not hw_reset(device):
+        if not g3_lib.hw_reset(device):
             logging.error("HWRESET failed.")
             return False
 
@@ -870,32 +775,23 @@ def init_board_client(device):
         retry_count = 5
     swreset_ok = False
     while retry_count:
-        logging.warning(f"SWRESET try {retry_count}")
-        _G_wait_dev_start.clear()
-        cmd_args = argparse.Namespace()
-        cmd_args.bandplan = 'FCC'
-        cmd_args.devicetype = 'device'
-        cmd_args.mode = 'ipv6_boot'
-        swreset_cmd = g3_cmd.SWResetCmd()
-        swreset_cmd.parse_args(cmd_args)
-        swreset_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
-        fields = g3_comms.g3_tx.send_and_wait(device, swreset_cmd)
-        swreset_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
-        if check_status_ok(fields):
-            swreset_ok = True
-            break
+        if retry_count > 1:
+            logging.warning(f"SWRESET try {retry_count}")
+        (swreset_ok, _) = g3_lib.sw_reset(device, 'device', 'ipv6_boot')
         retry_count = retry_count - 1
+        if swreset_ok:
+            break
         time.sleep(1)
-
     if not swreset_ok:
         logging.error("G3LIB-SWRESET unsuccessful.")
         return False
 
     # 4. Wait until we're reset
+    _G_wait_dev_start.clear()
     if not _G_wait_dev_start.wait(START_TIMEOUT):
         logging.error("Never received G3BOOT-DEV-START, timeout. Exiting")
 
-    if not check_status_ok(_G_returned_dev_start):
+    if not g3_lib.check_status_ok(_G_returned_dev_start):
         logging.error("G3BOOT-DEV-START unsuccessful.")
         return False
 
@@ -909,7 +805,7 @@ def setup_connection(device, connid, session_info):
     logging.debug("    setup_connection()")
     start_packet = encode_start_packet()
     _G_wait_data.clear()
-    (send_ok, status) = send_udp(device, connid, 1, start_packet)
+    (send_ok, status) = g3_lib.send_udp(device, connid, 1, start_packet)
     if not send_ok:
         logging.error(f"Error sending setup_connection: {status}")
         return False
@@ -985,7 +881,7 @@ def do_iperfs(device, connid, session_info, stats):#pylint: disable=unused-argum
         # TODO: threaded implementation for the RX with accounting for packets
         ping_packet = encode_ping_packet(packet_num)
         _G_wait_data.clear()
-        (send_ok, status) = send_udp(device, connid, handle, ping_packet)
+        (send_ok, status) = g3_lib.send_udp(device, connid, handle, ping_packet, print_progress=True)
         if send_ok:
             stats['send_count'] = stats['send_count'] + 1
             stats['send_bytes'] = stats['send_bytes'] + len(ping_packet)
@@ -1045,7 +941,7 @@ def close_connection(device, connid, sent_count):
     done_packet = encode_done_packet(sent_count)
     done_count = 0
     while done_count < DONE_COUNT_PACKETS and _G_running:
-        (send_ok, status) = send_udp(device, connid, 1, done_packet)
+        (send_ok, status) = g3_lib.send_udp(device, connid, 1, done_packet)
         if not send_ok and status == 'timed out':
             logging.error("Timeout when sending DONE packet.")
         done_count = done_count + 1
@@ -1062,7 +958,6 @@ def close_connection(device, connid, sent_count):
 #    4. print accounting information
 def do_client(device):
     global _G_running
-    global print_progress
     _G_running = True
     stats = {}
     session_info = {}
@@ -1077,9 +972,7 @@ def do_client(device):
             break
         if setup_connection(device, connid, session_info):
             init_accounting(stats)
-            print_progress = True
             do_iperfs(device, connid, session_info, stats)
-            print_progress = False
             print('') # get a newline because we've been printing out the rx'd packet connection number to show progress
             finalize_accounting(stats)
             close_connection(device, connid, stats['send_count'])
@@ -1172,16 +1065,17 @@ def main():
     # Force media
     media_ok = True  # default to OK, because we might not want to set the media
     if args.media == 'rf':
-        (media_ok, _) = set_media(device, g3_comms.g3_consts.G3_MEDIA_RF)
+        (media_ok, _) = g3_lib.set_media(device, g3_comms.g3_consts.G3_MEDIA_RF)
     elif args.media == 'plc':
-        (media_ok, _) = set_media(device, g3_comms.g3_consts.G3_MEDIA_PLC)
+        (media_ok, _) = g3_lib.set_media(device, g3_comms.g3_consts.G3_MEDIA_PLC)
 
     # Change UART baudrate
     speed_ok = True
     if args.pcm:
-        logging.warning(f'Forcing lower speed baud-rate of {baudrate} for PCM')
+        logging.warning('Forcing lower speed baud-rate of 230400 for PCM')
+        (speed_ok, _) = g3_lib.set_speed(device, 230400)
     else:
-        (speed_ok, _) = set_speed(device, args.speed)
+        (speed_ok, _) = g3_lib.set_speed(device, args.speed)
 
     # Main body
     if init_ret and media_ok and speed_ok:
@@ -1198,9 +1092,9 @@ def main():
             exit_clean()
 
     # Cleanup and quit
-    set_speed(device, baudrate) # restore to whatever speed we started with
+    g3_lib.set_speed(device, baudrate) # restore to whatever speed we started with
     if args.media != 'all':
-        set_media(device, g3_comms.g3_consts.G3_MEDIA_ALL)
+        g3_lib.set_media(device, g3_comms.g3_consts.G3_MEDIA_ALL)
 
     g3_comms.g3_rx.G3Rx.quit()
     rx_thread.join()
