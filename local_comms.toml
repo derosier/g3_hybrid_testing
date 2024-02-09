@@ -7,3 +7,8 @@ gateway = false # gateway can be false or true.  A `true` here indicates a Gatew
                 # would be the Local Comms network Coordinator.  `false` are just Devices.
 uuid = "G3MOD-PCM-000A-01:JJ-9999-F4CH9" # The uuid is the part-number:serial-number.
 
+# Define serial port parameters
+[serial]
+pcm_pass_through = false # True if using the pass-through feature on a PCM
+port = "/dev/ttyG3Srv"
+baudrate = 921600  # If a PCM, don't use > 230400

@@ -4,3 +4,7 @@
 gateway = false
 uuid = "G3MOD-PCM-000A-01:JJ-9999-F4CH9"
 
+[serial]
+pcm_pass_through = false
+port = "/dev/ttyGBTable"
+baudrate = 921600
