@@ -64,7 +64,7 @@ def set_speed(device, speed):
         logging.error("HOSTIF-BAUDRATESET unsuccessful.")
         return (False, fields['status'])
     device.baudrate = speed
-    logging.warning(f"Serial port baud rate updated to {speed}")
+    logging.debug(f"Serial port baud rate updated to {speed}")
     return (True, fields['status'])
 
 def set_media(device, value):

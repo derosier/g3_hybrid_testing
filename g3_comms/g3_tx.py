@@ -7,6 +7,8 @@ from g3_comms.g3_crc import crc16
 _G_wait = threading.Event()
 _G_returned_fields = {}
 
+cmd_verbose = False
+
 # Arguments:
 #    name - The name of the message rx, which would be G3Resp.g3_name
 #    fields - the parsed fields from the message
@@ -32,7 +34,10 @@ def form_msg(cmd):
     return encap_msg(cmd.g3_id, msg_data)
 
 def send(device, cmd):
-    logging.info(f"Sending command {cmd.g3_name}")
+    if cmd_verbose:
+        logging.info(f"Sending command {cmd.g3_name}")
+    else:
+        logging.debug(f"Sending command {cmd.g3_name}")
     msg = form_msg(cmd)
     logging.debug(f"{msg}")
     byte_count = device.write(msg)

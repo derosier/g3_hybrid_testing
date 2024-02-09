@@ -23,6 +23,8 @@ from g3_comms.g3_crc import crc16
 import g3_comms.g3_consts
 from g3_comms import g3_lib
 
+g3_comms.g3_tx.cmd_verbose = True
+
 default_port="/dev/ttyACM0"
 default_baudrate=115200
 default_new_baudrate=921600

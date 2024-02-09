@@ -185,6 +185,7 @@ def main():
     # set the setting that makes that happen. We didn't set it before so the connman init doesn't
     # spam us on startup.
     g3_comms.g3_msgs.print_msg = True
+    g3_comms.g3_tx.cmd_verbose = True
 
 
     while True:

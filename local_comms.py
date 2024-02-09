@@ -9,6 +9,8 @@ import secrets
 
 import toml
 
+import g3_comms.g3_tx
+import g3_comms.g3_msgs
 import g3_comms.g3_consts
 
 DEFAULT_CFG_FILE = "local_comms.toml"
@@ -22,6 +24,12 @@ args = parser.parse_args()
 lineformat = "%(asctime)s: [%(levelname)s] %(message)s"
 logging.basicConfig(format=lineformat, level=args.verbosity.upper(),
                     datefmt="%H:%M:%S")
+
+if args.verbosity.upper() == "DEBUG":
+    # A couple of internal debug filtering flags exist in g3_comms to hold verbosity down. If we're
+    # in DEBUG mode, right now we want to see these messages, so let's enable these flags.
+    g3_comms.g3_msgs.print_msg = True
+    g3_comms.g3_tx.cmd_verbose = True
 
 _G_running = True
 def exit_clean():
@@ -67,7 +75,7 @@ def lcn_parmeters_init(panel_config):
     return lcn_cfg
 
 def coordinator_main(panel_config):
-    logging.debug("### Started Coordinator")
+    logging.info("### Started Coordinator")
 
     # First we need to set this up.  Coordinators always start in LCN mode. But if we've never
     # started before, we'll need to do some setup.
@@ -84,7 +92,7 @@ def coordinator_main(panel_config):
 ####################################################################################################
 
 def main():
-    logging.debug("*** Starting Local Comms")
+    logging.info("*** Starting Local Comms")
     logging.debug(f"args: {args}")
 
     signal.signal(signal.SIGINT, shutdown_handler)
@@ -92,19 +100,19 @@ def main():
     panel_config = {}
     panel_config = load_config(args.config)
 
-    logging.debug(f"Configuration loaded: {panel_config}")
+    logging.info(f"Configuration loaded: {panel_config}")
 
     if panel_config['panel_type'] == 'coordinator':
-        logging.debug("Designated as the Coordinator panel")
+        logging.info("Designated as the Coordinator panel")
         coordinator_main(panel_config)
     elif panel_config['panel_type'] == 'device':
-        logging.debug("Designated as a device panel")
+        logging.info("Designated as a device panel")
         while _G_running:
             time.sleep(0.1)
     else:
         logging.error(f"Invalid panel type: {panel_config['panel_type']}")
 
-    logging.debug("*** Quitting Local Comms")
+    logging.info("*** Quitting Local Comms")
 
 if __name__ == "__main__":
     main()
