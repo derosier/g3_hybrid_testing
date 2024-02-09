@@ -5,7 +5,11 @@ import logging
 import argparse
 import signal
 import time
+import secrets
+
 import toml
+
+import g3_comms.g3_consts
 
 DEFAULT_CFG_FILE = "local_comms.toml"
 
@@ -42,10 +46,38 @@ def load_config(filename):
 
     return cfg
 
+def save_config(filename, cfg):
+    # We store the key as pure hex text and then restore that to a bytes object. Otherwise
+    # we get a weird array that we don't want.
+    cfg['local comms']['session_key'] = cfg['local comms']['session_key'].hex()
+    with open(filename, 'w', encoding="utf-8") as f:
+        toml.dump(cfg, f)
+
+def lcn_parmeters_init(panel_config):
+    lcn_cfg = {}
+    try:
+        # load our last saved state if we can
+        lcn_cfg = panel_config['local comms']
+        lcn_cfg['session_key'] = bytes.fromhex(lcn_cfg['session_key'])
+    except KeyError:
+        # if we don't have a last saved state, then we need to initialize it
+        lcn_cfg['key_time'] = time.time()
+        lcn_cfg['session_key'] = secrets.token_bytes(g3_comms.g3_consts.G3_PSK_LEN)
+
+    return lcn_cfg
+
 def coordinator_main(panel_config):
     logging.debug("### Started Coordinator")
+
+    # First we need to set this up.  Coordinators always start in LCN mode. But if we've never
+    # started before, we'll need to do some setup.
+    lcn_config = lcn_parmeters_init(panel_config)
+
     while _G_running:
         time.sleep(0.1)
+
+    panel_config['local comms'] = lcn_config
+    save_config('c_session.toml', panel_config)
 
 ####################################################################################################
 ##  MAIN
