@@ -554,6 +554,18 @@ class BootSrvStartCmd(G3Cmd):
         raw = struct.pack("<HHB", self.fields['addr'], self.fields['panid'], self.fields['reqtype'])
         return raw
 
+# Datasheet (AN5603) pg 88
+class BootSrvStopCmd(G3Cmd):
+    g3_id = 0xB2
+    g3_name = 'G3BOOT-SRV-STOP'
+    rx_msgs = ['G3BOOT-SRV-STOP']
+
+    def _add_parser(self, subparsers):
+        return subparsers.add_parser('bootsrvstop', help='Stop the BOOT server')
+
+    def encode_cmd(self):
+        return b''
+
 # Datasheet (AN5603) pg 90
 class BootDevStartCmd(G3Cmd):
     g3_id = 0xB8

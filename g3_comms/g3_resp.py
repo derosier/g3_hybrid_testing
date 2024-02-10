@@ -553,6 +553,23 @@ class BootSrvStartResp(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
+# Datasheet (AN5603) pg 90
+class BootSrvStopResp(G3Resp):
+    g3_id = 0xB3
+    g3_name = 'G3BOOT-SRV-STOP'
+
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from("<B", msg['data'], 1)
+        self.raw_fields = raw_fields
+        try:
+            self.fields['status'] = G3C.G3_RESULTS[raw_fields[0]]
+        except KeyError:
+            logging.error(f"Unknown status key on {self.g3_name}: {raw_fields[0]}")
+
+    def pr_decode(self):
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
+
 # Datasheet (AN5603) pg 88
 class BootSrvJoinInd(G3Resp):
     g3_id = 0xB7
