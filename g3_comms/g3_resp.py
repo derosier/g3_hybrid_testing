@@ -536,6 +536,66 @@ class G3PhyRfInd(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
+# Datasheet (AN5603) pg 100
+class NetstatusInd(G3Resp):
+    g3_id = 0x92
+    g3_name = 'G3ADP-NETSTATUS.Ind'
+
+    def decode(self, msg):
+        super().decode(msg)
+        fmt = "<BH"
+        offset = 1
+        raw_fields = struct.unpack_from(fmt, msg['data'], offset)
+        offset = offset + struct.calcsize(fmt)
+        self.fields['src_addrmode'] = raw_fields[0]
+        self.fields['src_panid'] = raw_fields[1]
+        if self.fields['src_addrmode'] == 0:
+            fmt = "<"
+        elif self.fields['src_addrmode'] == 2:
+            fmt = "<H"
+        elif self.fields['src_addrmode'] == 3:
+            fmt = "<Q"
+        else:
+            logging.error(f"Unknown src_addrmode {self.fields['src_addrmode']}")
+            return
+        fmt = fmt + "BH"
+        raw_fields = struct.unpack_from(fmt, msg['data'], offset)
+        offset = offset + struct.calcsize(fmt)
+        o = 0
+        if self.fields['src_addrmode'] != 0:
+            o = 1
+            self.fields['src_addr'] = raw_fields[0]
+        self.fields['dst_addrmode'] = raw_fields[0+o]
+        self.fields['dst_panid'] = raw_fields[1+o]
+        if self.fields['dst_addrmode'] == 0:
+            fmt = "<"
+        elif self.fields['dst_addrmode'] == 2:
+            fmt = "<H"
+        elif self.fields['dst_addrmode'] == 3:
+            fmt = "<Q"
+        else:
+            logging.error(f"Unknown src_addrmode {self.fields['src_addrmode']}")
+            return
+        fmt = fmt + "BBBBB72s"
+        raw_fields = struct.unpack_from(fmt, msg['data'], offset)
+        offset = offset + struct.calcsize(fmt)
+        o = 0
+        if self.fields['dst_addrmode'] != 0:
+            o = 1
+            self.fields['dst_addr'] = raw_fields[0]
+        self.fields['securitylevel'] = raw_fields[0+o]
+        self.fields['keyidmode'] = raw_fields[1+o]
+        self.fields['keyindex'] = raw_fields[2+o]
+        self.fields['lqi'] = raw_fields[3+o]
+        self.fields['mediatype'] = raw_fields[4+o]
+        self.fields['snrcarriers'] = raw_fields[5+o]
+
+    def pr_decode(self):
+        logging.info(f'Reply {self.g3_name}: {self.fields}')
+
+    def dbg_pr_decode(self):
+        print(f'Reply {self.g3_name}: {self.fields}')
+
 # Datasheet (AN5603) pg 87
 class BootSrvStartResp(G3Resp):
     g3_id = 0xB1
