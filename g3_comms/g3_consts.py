@@ -1,7 +1,8 @@
 # Useful constants maps
 
 G3_DEFAULT_PAN = 30749
-
+G3_DEFAULT_PSK = b'\xafMm\xcc\xf1M\xe7\xc1\xc4#^o\xefl\x15\x1f'
+G3_DEFAULT_PSK_IDX = 0
 G3_PSK_LEN = 16
 
 # Table 12. G3 platform modes. pg 15
@@ -238,6 +239,62 @@ NVM_SECTION = {
 
 # reverse lookup for Table 44
 NVM_SECTION_R = {y: x for x, y in NVM_SECTION.items()}
+
+NVM_PLC_OFFSETS = {
+    'MARKER': 0,
+    'VERSION': 4,
+    'HIMODEBPDEVT': 6,
+    'CONFIG': 7,
+    'RSV1': 8,
+    'FC': 16,
+    'FC_RF': 20,
+    'LG_SN': 24,
+    'PAD': 26,
+    'LG_SN_EXTRA': 28,
+    'FC_EXTRA': 32,
+    'FC_RF_EXTRA':36,
+    'RSV3': 40,
+    'CRC': 42,
+    'PANID': 44,
+    'SHORTADDR': 46,
+    'ACTIVEKEYIDX': 48,
+    'RSV2': 49,
+    'KEY0FREE': 50,
+    'KEY0': 51,
+    'KEY1FREE': 67,
+    'KEY1': 68,
+    'PANCPREFIX1': 84,
+    'PANCPREFIX2': 92,
+    'ATTRIBUTES': 100,
+}
+
+NVM_PLC_SIZE = {
+    'MARKER': 4,
+    'VERSION': 2,
+    'HIMODEBPDEVT': 1,
+    'CONFIG': 1,
+    'RSV1': 8,
+    'FC': 4,
+    'FC_RF': 4,
+    'LG_SN': 2,
+    'PAD': 2,
+    'LG_SN_EXTRA': 4,
+    'FC_EXTRA': 4,
+    'FC_RF_EXTRA': 4,
+    'RSV3': 2,
+    'CRC': 2,
+    'PANID': 2,
+    'SHORTADDR': 2,
+    'ACTIVEKEYIDX': 1,
+    'RSV2': 1,
+    'KEY0FREE': 1,
+    'KEY0': 16,
+    'KEY1FREE': 1,
+    'KEY1': 16,
+    'PANCPREFIX1': 8,
+    'PANCPREFIX2': 8,
+    'ATTRIBUTES': 436,
+}
 
 #######################
 # PIB table values

@@ -14,6 +14,7 @@ import g3_comms.g3_msgs
 from g3_comms import g3_resp
 from g3_comms import g3_cmd
 import g3_comms.g3_connman
+import g3_lib_cli
 
 default_port="/dev/ttyACM0"
 default_baudrate=115200
@@ -89,6 +90,7 @@ g3_comms.g3_msgs.msg_cmds['connget'] = g3_cmd.UDPConnGetCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['echo'] = g3_cmd.ICMPEchoCmd(subparsers)
 
 connman = g3_comms.g3_connman.ConnMan(g3_comms.g3_msgs.msg_decode_list, subparsers)
+libcli = g3_lib_cli.LibCLI(subparsers)
 
 args = parser.parse_args()
 
@@ -112,6 +114,9 @@ def interactive_parser_error(self=None, status=0, message=None): #pylint: disabl
 def do_cli_cmd(device):
     if args.cmd in ('connman'):
         connman.do_cmds(device, args)
+
+def do_lib_cmd(device):
+    libcli.do_cmds(device, args)
 
 def do_g3_cmd(device, dryrun):
     try:
@@ -197,6 +202,8 @@ def main():
         if args.cmd:
             if args.cmd in ('connman'):
                 do_cli_cmd(device)
+            elif args.cmd in g3_lib_cli.implmented_cmds:
+                do_lib_cmd(device)
             else:
                 do_g3_cmd(device, dryrun)
 

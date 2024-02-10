@@ -52,6 +52,127 @@ def sw_reset(device, nodetype, mode):
         return (False, fields['status'])
     return (True, fields['status'])
 
+def get_dbgtool(device):
+    # Set the connection
+    dbgtool_cmd = g3_comms.g3_cmd.DBGToolCmd()
+    dbgtool_cmd.parse_args(None)
+    dbgtool_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
+    fields = g3_comms.g3_tx.send_and_wait(device, dbgtool_cmd)
+    dbgtool_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
+    try:
+        if not fields['error_code'] == 0:
+            logging.error("HOSTIF-DBGTOOL unsuccessful.")
+            return (False, fields)
+    except KeyError:
+        logging.error("HOSTIF-DBGTOOL unsuccessful.")
+        return (False, fields)
+    return (True, fields)
+
+def get_panid(device):
+    (status, fields) = get_dbgtool(device)
+    if status:
+        return fields['pan_id']
+    else:
+        return 0xffff
+
+def get_shortid(device):
+    (status, fields) = get_dbgtool(device)
+    if status:
+        return fields['short_id']
+    else:
+        return 0xffff
+
+def get_nvm(device, section, attribute):
+    cmd_args = argparse.Namespace()
+    cmd_args.nvmcmd = 'read'
+    cmd_args.section = section
+    if section == 'plc':
+        try:
+            cmd_args.offset = g3_comms.g3_consts.NVM_PLC_OFFSETS[attribute]
+            cmd_args.size = g3_comms.g3_consts.NVM_PLC_SIZE[attribute]
+        except KeyError:
+            logging.error(f"Invalid field for PLC NVM {attribute}")
+            return 'G3_PARAMETER_ERROR'
+    else:
+        logging.error(f"Unsupported nvm section {section} for get_nvm()")
+        return 'G3_PARAMETER_ERROR'
+
+    logging.debug(f"NVMCmd with {cmd_args}")
+    cmd = g3_cmd.NVMCmd()
+    cmd.parse_args(cmd_args)
+    cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
+    fields = g3_comms.g3_tx.send_and_wait(device, cmd)
+    cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
+    if not check_status_ok(fields):
+        logging.error("HOSTIF-NVM unsuccessful.")
+        return fields['status']
+    return fields['data']
+
+def set_nvm(device, section, offset, data):
+    cmd_args = argparse.Namespace()
+    cmd_args.nvmcmd = 'write'
+    cmd_args.section = section
+    cmd_args.offset = offset
+    cmd_args.bindata = data
+    cmd = g3_cmd.NVMCmd()
+    cmd.parse_args(cmd_args)
+    cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
+    fields = g3_comms.g3_tx.send_and_wait(device, cmd)
+    cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
+    if not check_status_ok(fields):
+        logging.error("HOSTIF-NVM unsuccessful.")
+        return (False, fields['status'])
+    return (True, fields['status'])
+
+def set_nvm_psk(device, psk_index, data):
+    if psk_index < 0 or psk_index > 1:
+        logging.error(f"Invalid PSK index {psk_index}")
+        return (False, 'G3_PARAMETER_ERROR')
+
+    if psk_index == 0:
+        (status, status_str) = set_nvm(device, 'plc', g3_comms.g3_consts.NVM_PLC_OFFSETS['KEY0'], data)
+    else:
+        (status, status_str) = set_nvm(device, 'plc', g3_comms.g3_consts.NVM_PLC_OFFSETS['KEY1'], data)
+    if not status:
+        logging.error(f"Setting KEY{psk_index} unsuccessful.")
+        return (False, status_str)
+
+    if psk_index == 0:
+        (status, status_str) = set_nvm(device, 'plc', g3_comms.g3_consts.NVM_PLC_OFFSETS['KEY0FREE'], b'\x00')
+    else:
+        (status, status_str) = set_nvm(device, 'plc', g3_comms.g3_consts.NVM_PLC_OFFSETS['KEY1FREE'], b'\x01')
+    if not status:
+        logging.error(f"Setting KEY{psk_index}FREE unsuccessful.")
+        return (False, status_str)
+    return (True, status_str)
+
+def set_nvm_psk_index(device, psk_index):
+    if psk_index < 0 or psk_index > 1:
+        logging.error(f"Invalid PSK index {psk_index}")
+        return (False, 'G3_PARAMETER_ERROR')
+    data = psk_index.to_bytes(1, byteorder='little')
+    (status, status_str) = set_nvm(device, 'plc', g3_comms.g3_consts.NVM_PLC_OFFSETS['ACTIVEKEYIDX'], data)
+    if not status:
+        logging.error("Setting ACTIVEKEYIDX unsuccessful.")
+        return (False, status_str)
+    return (True, status_str)
+
+def set_nvm_panid(device, value):
+    data = value.to_bytes(2, byteorder='little')
+    (status, status_str) = set_nvm(device, 'plc', g3_comms.g3_consts.NVM_PLC_OFFSETS['PANID'], data)
+    if not status:
+        logging.error("Setting PANID unsuccessful.")
+        return (False, status_str)
+    return (True, status_str)
+
+def set_nvm_shortaddr(device, value):
+    data = value.to_bytes(2, byteorder='little')
+    (status, status_str) = set_nvm(device, 'plc', g3_comms.g3_consts.NVM_PLC_OFFSETS['SHORTADDR'], data)
+    if not status:
+        logging.error("Setting SHORTADDR unsuccessful.")
+        return (False, status_str)
+    return (True, status_str)
+
 def set_speed(device, speed):
     cmd_args = argparse.Namespace()
     cmd_args.speed = speed
