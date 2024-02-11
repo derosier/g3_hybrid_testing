@@ -62,8 +62,13 @@ def exit_clean():
     global _G_running
     _G_running = False
 
+_G_sig_hit = 0
 def shutdown_handler(signum, frame): # pylint: disable=unused-argument
+    global _G_sig_hit
     exit_clean()
+    _G_sig_hit = _G_sig_hit+1
+    if _G_sig_hit > 2:
+        raise Exception("Force ^C")
 
 def load_config(filename):
     cfg = {}
