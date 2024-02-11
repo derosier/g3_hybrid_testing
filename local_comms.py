@@ -19,6 +19,9 @@ from g3_comms import g3_resp
 import g3_comms.g3_consts
 from g3_comms import g3_lib
 
+LC_COORD_SA = 1000
+START_TIMEOUT = 60.0
+
 DEFAULT_CFG_FILE = "local_comms.toml"
 
 parser = argparse.ArgumentParser()
@@ -40,6 +43,7 @@ if args.verbosity.upper() == "DEBUG":
 # Instantiate a global instance of every response we want to process on Rx
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.UARTBaudSetResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.NVMResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.DBGToolResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.G3GetResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.G3SetResp())
@@ -69,6 +73,27 @@ def shutdown_handler(signum, frame): # pylint: disable=unused-argument
     _G_sig_hit = _G_sig_hit+1
     if _G_sig_hit > 2:
         raise Exception("Force ^C")
+
+####################################################################################################
+##  Message processing
+####################################################################################################
+
+# The callback is called from the received message hook and because of the way it is done
+# the first parameter will be the actual Resp object. We can ignore this. The next arguments:
+#    _ - This is the context set when the hook is set here we can ignore it
+#    name - The name of the message rx, which would be G3Resp.g3_name
+#    fields - the parsed fields from the message
+
+# Reply G3BOOT-SRV-START: {'error_code': 0, 'status': 'G3_SUCCESS'}
+# Used when we boot into coordinator mode. Allows us to pause after our swreset and know we're
+# running.
+_G_wait_srv_start = threading.Event()
+_G_returned_srv_start = {}
+def srv_start_callback(_, name, fields):
+    global _G_returned_srv_start
+    logging.info(f"srv_start_callback({_}, {name}, {fields})")
+    _G_returned_srv_start = fields
+    _G_wait_srv_start.set()
 
 def load_config(filename):
     cfg = {}
@@ -100,17 +125,49 @@ def lcn_parmeters_init(panel_config):
         lcn_cfg['session_key'] = bytes.fromhex(lcn_cfg['session_key'])
     except KeyError:
         # if we don't have a last saved state, then we need to initialize it
-        lcn_cfg['key_time'] = time.time()
+        lcn_cfg['key_created'] = time.time()
         lcn_cfg['session_key'] = secrets.token_bytes(g3_comms.g3_consts.G3_PSK_LEN)
+        lcn_cfg['lcn_pan'] = int.from_bytes(secrets.token_bytes(2), byteorder='big')
 
     return lcn_cfg
 
-def coordinator_main(panel_config):
+def coordinator_setup_lcn(serial_device, lcn_cfg):
+    logging.info(f"coordinator_setup_lcn({lcn_cfg})")
+
+    g3_lib.set_nvm_panid(serial_device, lcn_cfg['lcn_pan'])
+    g3_lib.set_nvm_shortaddr(serial_device, LC_COORD_SA)
+    g3_lib.set_nvm_psk(serial_device, 0, lcn_cfg['session_key'])
+
+def coordinator_main(panel_config, serial_device):
     logging.info("### Started Coordinator")
 
-    # First we need to set this up.  Coordinators always start in LCN mode. But if we've never
-    # started before, we'll need to do some setup.
+    # 1. Setup hooks
+    g3_lib.set_hook(srv_start_callback, ['G3BOOT-SRV-START'])
+
+    # Coordinators always start in LCN mode. But if we've never started before, we'll need to do
+    # some setup. This function will take what the config file gave us and check if we've got
+    # session information. If no parameters, we'll create them.
     lcn_config = lcn_parmeters_init(panel_config)
+
+    # Start our LCN
+    coordinator_setup_lcn(serial_device, lcn_config)
+    (sw_reset, status) = g3_lib.sw_reset(serial_device, 'coordinator', 'ipv6_boot')
+    if not sw_reset:
+        logging.error(f"Unable to perform a SWRESET: {status}")
+
+    # Wait until we're reset
+    # Indicator = Reply G3BOOT-SRV-START: {'error_code': 0, 'status': 'G3_SUCCESS'}
+    _G_wait_srv_start.clear()
+    if not _G_wait_srv_start.wait(START_TIMEOUT):
+        logging.error("Never received G3BOOT-SRV-START, timeout.")
+    if not g3_lib.check_status_ok(_G_returned_srv_start):
+        logging.error("G3BOOT-SRV-START unsuccessful.")
+        return False
+
+    pan_id = g3_lib.get_panid(serial_device)
+    short_id = g3_lib.get_shortid(serial_device)
+
+    logging.info(f"PAN: {pan_id}, SA: {short_id}")
 
     while _G_running:
         time.sleep(0.1)
@@ -164,15 +221,24 @@ def main():
     rx_thread = threading.Thread(target=rx_protocol.run)
     rx_thread.start()
 
+    if not g3_lib.hw_reset(serial_device):
+        logging.error("Unable to perform a HWRESET")
+        exit_clean()
+        g3_comms.g3_rx.G3Rx.quit()
+        rx_thread.join()
+        sys.exit(1)
+
     speed_ok = init_serial_speed(serial_device, panel_config)
     if not speed_ok:
         logging.error("Error when setting up the serial device.")
         exit_clean()
+        g3_comms.g3_rx.G3Rx.quit()
+        rx_thread.join()
         sys.exit(1)
 
     if panel_config['panel_type'] == 'coordinator':
         logging.info("Designated as the Coordinator panel")
-        coordinator_main(panel_config)
+        coordinator_main(panel_config, serial_device)
     elif panel_config['panel_type'] == 'device':
         logging.info("Designated as a device panel")
         while _G_running:
