@@ -79,7 +79,7 @@ def shutdown_handler(signum, frame): # pylint: disable=unused-argument
     exit_clean()
     _G_sig_hit = _G_sig_hit+1
     if _G_sig_hit > 2:
-        raise Exception("Force ^C")
+        raise Exception("Force ^C") # pylint: disable=broad-exception-raised
 
 ####################################################################################################
 ##  Message processing
