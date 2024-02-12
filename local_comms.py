@@ -140,16 +140,34 @@ def lcn_parmeters_init(panel_config):
         # if we don't have a last saved state, then we need to initialize it
         lcn_cfg['key_created'] = time.time()
         lcn_cfg['session_key'] = secrets.token_bytes(g3_comms.g3_consts.G3_PSK_LEN)
-        lcn_cfg['lcn_pan'] = int.from_bytes(secrets.token_bytes(2), byteorder='big')
+        lcn_cfg['pan'] = int.from_bytes(secrets.token_bytes(2), byteorder='big')
 
     return lcn_cfg
 
-def coordinator_setup_lcn(serial_device, lcn_cfg):
-    logging.info(f"coordinator_setup_lcn({lcn_cfg})")
+def get_lcn_cfg(panel_config):
+    lcn_cfg = None
+    if 'local comms' in panel_config:
+        if 'pan' in panel_config['local comms']:
+            try:
+                lcn_cfg = panel_config['local comms']
+                lcn_cfg['session_key'] = bytes.fromhex(lcn_cfg['session_key'])
+                lcn_cfg['sa'] = -1 # if this got saved, ignore it
+            except KeyError:
+                lcn_cfg = None
 
-    g3_lib.set_nvm_panid(serial_device, lcn_cfg['lcn_pan'])
-    g3_lib.set_nvm_shortaddr(serial_device, LC_COORD_SA)
-    g3_lib.set_nvm_psk(serial_device, 0, lcn_cfg['session_key'])
+    return lcn_cfg
+
+def init_pair_network_cfg(panel_config):
+    logging.info(f"init_pair_network_cfg({panel_config})")
+    return {}
+
+def setup_network(serial_device, net_cfg):
+    logging.info(f"setup_network({net_cfg})")
+
+    g3_lib.set_nvm_panid(serial_device, net_cfg['pan'])
+    if net_cfg['sa'] >= 0:
+        g3_lib.set_nvm_shortaddr(serial_device, net_cfg['sa'])
+    g3_lib.set_nvm_psk(serial_device, 0, net_cfg['session_key'])
 
 def coordinator_main(panel_config, serial_device):
     logging.info("### Started Coordinator")
@@ -167,8 +185,8 @@ def coordinator_main(panel_config, serial_device):
     lcn_config['sa'] = LC_COORD_SA
 
     # Start our LCN
-    coordinator_setup_lcn(serial_device, lcn_config)
-    (sw_reset, status) = g3_lib.sw_reset(serial_device, 'coordinator', 'ipv6_boot')
+    setup_network(serial_device, lcn_config)
+    (sw_reset, status) = g3_lib.sw_reset(serial_device, panel_config['panel_type'], 'ipv6_boot')
     if not sw_reset:
         logging.error(f"Unable to perform a SWRESET: {status}")
 
@@ -206,6 +224,69 @@ def coordinator_main(panel_config, serial_device):
     panel_config['local comms'] = lcn_config
     save_config('c_session.toml', panel_config)
 
+
+def device_main(panel_config, serial_device):
+    logging.info("### Started Device")
+
+    # 1. Setup hooks
+    g3_lib.set_hook(net_start_callback, ['G3BOOT-SRV-START'])
+    g3_lib.set_hook(net_start_callback, ['G3BOOT-DEV-START'])
+    g3_lib.set_hook(local_comms_rx_handler.data_rx_callback, ['G3UDP-DATA.Ind'])
+    g3_lib.set_hook(local_comms_rx_handler.data_rx_callback, ['META-ERROR'])
+
+    # If this Device has run an LCN before, then we'll have configuration available.
+    lcn_cfg = get_lcn_cfg(panel_config)
+    if lcn_cfg:
+        # start an LCN network
+        net_cfg = lcn_cfg
+        node_type = 'device'
+    else:
+        net_cfg = init_pair_network_cfg(panel_config)
+        node_type = 'coordinator'
+        logging.error("Not ready to do a pairing network yet, quitting")
+        return
+
+    # Start our network
+    setup_network(serial_device, net_cfg)
+    (sw_reset, status) = g3_lib.sw_reset(serial_device, node_type, 'ipv6_boot')
+    if not sw_reset:
+        logging.error(f"Unable to perform a SWRESET: {status}")
+
+    # Wait until we're reset
+    # Indicator = Reply G3BOOT-SRV-START: {'error_code': 0, 'status': 'G3_SUCCESS'}
+    _G_wait_srv_start.clear()
+    if not _G_wait_srv_start.wait(START_TIMEOUT):
+        logging.error("Never received network start, timeout.")
+    if not g3_lib.check_status_ok(_G_returned_srv_start):
+        logging.error("Network start unsuccessful.")
+        return
+
+    # Setup connections
+    connman.init_setup(serial_device)
+    connman.print_info()
+    _ = connman.new_conn(serial_device, -1, 0, LC_CONTROL_PORT)
+    _ = connman.new_conn(serial_device, -1, 0, LC_DATA_PORT)
+    connman.print_conn_list()
+
+    # Start Rx handler thread
+    rx_handler = local_comms_rx_handler.LocalComms_Rx_Handler(serial_device)
+    rx_handler_thread = threading.Thread(target=rx_handler.run)
+    rx_handler_thread.start()
+
+    # Start Tx thread
+
+    # Now, in our "main" thread, handle the CLI
+    logging.info("Yup, Device is running!")
+    while _G_running:
+        time.sleep(1.0)
+
+    # Kill our threads
+    local_comms_rx_handler.LocalComms_Rx_Handler.quit()
+    rx_handler_thread.join()
+
+    if lcn_cfg:
+        panel_config['local comms'] = lcn_cfg
+    save_config('session.toml', panel_config)
 
 def init_serial(panel_config):
     port = panel_config['serial']['port']
@@ -272,8 +353,7 @@ def main():
         coordinator_main(panel_config, serial_device)
     elif panel_config['panel_type'] == 'device':
         logging.info("Designated as a device panel")
-        while _G_running:
-            time.sleep(0.1)
+        device_main(panel_config, serial_device)
     else:
         logging.error(f"Invalid panel type: {panel_config['panel_type']}")
 
