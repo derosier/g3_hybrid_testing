@@ -16,10 +16,15 @@ import g3_comms.g3_rx
 import g3_comms.g3_tx
 import g3_comms.g3_msgs
 from g3_comms import g3_resp
+import g3_comms.g3_connman
 import g3_comms.g3_consts
 from g3_comms import g3_lib
+import local_comms_rx_handler
 
 LC_COORD_SA = 1000
+LC_CONTROL_PORT = 900
+LC_DATA_PORT = 901
+
 START_TIMEOUT = 60.0
 
 DEFAULT_CFG_FILE = "local_comms.toml"
@@ -61,6 +66,8 @@ g3_comms.g3_msgs.msg_decode_list.append(g3_resp.UDPConnSet())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.UDPConnGet())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.MetaError())
 
+connman = g3_comms.g3_connman.ConnMan(g3_comms.g3_msgs.msg_decode_list)
+
 _G_running = True
 def exit_clean():
     global _G_running
@@ -89,11 +96,17 @@ def shutdown_handler(signum, frame): # pylint: disable=unused-argument
 # running.
 _G_wait_srv_start = threading.Event()
 _G_returned_srv_start = {}
-def srv_start_callback(_, name, fields):
+def net_start_callback(_, name, fields):
     global _G_returned_srv_start
-    logging.info(f"srv_start_callback({_}, {name}, {fields})")
+    logging.info(f"net_start_callback({_}, {name}, {fields})")
     _G_returned_srv_start = fields
     _G_wait_srv_start.set()
+
+# Happens when a device joins the PAN
+# Reply G3BOOT-SRV-JOIN: {'error_code': 0, 'e_addr': 12336387418442792960, 'short_id': 1}
+def join_callback(_, name, fields):
+    logging.debug(f"join_callback({_}, {name}, {fields})")
+    print(f"Node with address {fields['short_id']} joined the network.")
 
 def load_config(filename):
     cfg = {}
@@ -142,12 +155,16 @@ def coordinator_main(panel_config, serial_device):
     logging.info("### Started Coordinator")
 
     # 1. Setup hooks
-    g3_lib.set_hook(srv_start_callback, ['G3BOOT-SRV-START'])
+    g3_lib.set_hook(net_start_callback, ['G3BOOT-SRV-START'])
+    g3_lib.set_hook(join_callback, ['G3BOOT-SRV-JOIN'])
+    g3_lib.set_hook(local_comms_rx_handler.data_rx_callback, ['G3UDP-DATA.Ind'])
+    g3_lib.set_hook(local_comms_rx_handler.data_rx_callback, ['META-ERROR'])
 
     # Coordinators always start in LCN mode. But if we've never started before, we'll need to do
     # some setup. This function will take what the config file gave us and check if we've got
     # session information. If no parameters, we'll create them.
     lcn_config = lcn_parmeters_init(panel_config)
+    lcn_config['sa'] = LC_COORD_SA
 
     # Start our LCN
     coordinator_setup_lcn(serial_device, lcn_config)
@@ -162,15 +179,29 @@ def coordinator_main(panel_config, serial_device):
         logging.error("Never received G3BOOT-SRV-START, timeout.")
     if not g3_lib.check_status_ok(_G_returned_srv_start):
         logging.error("G3BOOT-SRV-START unsuccessful.")
-        return False
+        return
 
-    pan_id = g3_lib.get_panid(serial_device)
-    short_id = g3_lib.get_shortid(serial_device)
+    # Setup connections
+    connman.init_setup(serial_device)
+    connman.print_info()
+    _ = connman.new_conn(serial_device, -1, 0, LC_CONTROL_PORT)
+    _ = connman.new_conn(serial_device, -1, 0, LC_DATA_PORT)
+    connman.print_conn_list()
 
-    logging.info(f"PAN: {pan_id}, SA: {short_id}")
+    # Start Rx handler thread
+    rx_handler = local_comms_rx_handler.LocalComms_Rx_Handler(serial_device)
+    rx_handler_thread = threading.Thread(target=rx_handler.run)
+    rx_handler_thread.start()
 
+    # Start Tx thread
+
+    # Now, in our "main" thread, handle the CLI
     while _G_running:
-        time.sleep(0.1)
+        time.sleep(1.0)
+
+    # Kill our threads
+    local_comms_rx_handler.LocalComms_Rx_Handler.quit()
+    rx_handler_thread.join()
 
     panel_config['local comms'] = lcn_config
     save_config('c_session.toml', panel_config)
