@@ -5,7 +5,6 @@ import logging
 import argparse
 import threading
 import signal
-import struct
 import time
 import os
 import json
@@ -19,9 +18,10 @@ import g3_comms.g3_tx
 import g3_comms.g3_msgs
 from g3_comms import g3_resp
 import g3_comms.g3_connman
-from g3_comms.g3_crc import crc16
 import g3_comms.g3_consts
 from g3_comms import g3_lib
+
+import iperf_msgs
 
 g3_comms.g3_tx.cmd_verbose = True
 
@@ -40,71 +40,12 @@ SRV_ECHO_TIMEOUT = 0.5
 SRV_UDP_PORT = 5000
 CLIENT_UDP_PORT = 5001
 
-MSG_TYPE_NONE  = 0x00
-MSG_TYPE_START = 0x01
-MSG_TYPE_DONE = 0x02
-MSG_TYPE_PING = 0x03
-MSG_TYPE_PONG = 0x04
-MSG_TYPE_NACK = 0x84
-MSG_TYPE_ERROR = 0xFF
-MSG_TYPE_INVALID = 0xFF
-
-MSG_DIR_NONE = 0x00
-MSG_DIR_OUT = 0x01
-MSG_DIR_RESP = 0x02
-
 PING_MAX_TIME = 60
-MSG_MAX_PACKETS = 10000
 DONE_COUNT_PACKETS = 3
 
 NS_IN_SEC = 1000000000
 
 LOOKUP_MEDIA = ('plc', 'rf')
-
-# 1200 bytes below
-# There's a MTU limit for the UDP packets of 1270.
-MSG_LEN = 1200
-MSG_DATA = bytes.fromhex(
-"deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef"
-"00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000"
-"11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111"
-"22222222 22222222 22222222 22222222 22222222 22222222 22222222 22222222"
-"33333333 33333333 33333333 33333333 33333333 33333333 33333333 33333333"
-"44444444 44444444 44444444 44444444 44444444 44444444 44444444 44444444"
-"55555555 55555555 55555555 55555555 55555555 55555555 55555555 55555555"
-"66666666 66666666 66666666 66666666 66666666 66666666 66666666 66666666"
-"77777777 77777777 77777777 77777777 77777777 77777777 77777777 77777777"
-"88888888 88888888 88888888 88888888 88888888 88888888 88888888 88888888"
-"99999999 99999999 99999999 99999999 99999999 99999999 99999999 99999999"
-"aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa"
-"55555555 55555555 a5a5a5a5 ffffffff"
-"deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef"
-"00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000"
-"11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111"
-"22222222 22222222 22222222 22222222 22222222 22222222 22222222 22222222"
-"33333333 33333333 33333333 33333333 33333333 33333333 33333333 33333333"
-"44444444 44444444 44444444 44444444 44444444 44444444 44444444 44444444"
-"55555555 55555555 55555555 55555555 55555555 55555555 55555555 55555555"
-"66666666 66666666 66666666 66666666 66666666 66666666 66666666 66666666"
-"77777777 77777777 77777777 77777777 77777777 77777777 77777777 77777777"
-"88888888 88888888 88888888 88888888 88888888 88888888 88888888 88888888"
-"99999999 99999999 99999999 99999999 99999999 99999999 99999999 99999999"
-"aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa"
-"55555555 55555555 a5a5a5a5 ffffffff"
-"deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef deadbeef"
-"00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000"
-"11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111"
-"22222222 22222222 22222222 22222222 22222222 22222222 22222222 22222222"
-"33333333 33333333 33333333 33333333 33333333 33333333 33333333 33333333"
-"44444444 44444444 44444444 44444444 44444444 44444444 44444444 44444444"
-"55555555 55555555 55555555 55555555 55555555 55555555 55555555 55555555"
-"66666666 66666666 66666666 66666666 66666666 66666666 66666666 66666666"
-"77777777 77777777 77777777 77777777 77777777 77777777 77777777 77777777"
-"88888888 88888888 88888888 88888888 88888888 88888888 88888888 88888888"
-"99999999 99999999 99999999 99999999 99999999 99999999 99999999 99999999"
-"aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa"
-"55555555 55555555 a5a5a5a5 ffffffff"
-)
 
 msg_buffer = bytes()
 
@@ -115,7 +56,7 @@ parser.add_argument("-V", "--verbosity", default="WARNING", help="Logging verbos
 parser.add_argument("-t", "--timeout", type=int, default=5, help="Command wait for response timeout, default 5 seconds.")
 parser.add_argument("-n", "--noreset", action="store_true", help="Assume properly running, don't issue HW and SW resets. Saves 30 seconds on start.")
 parser.add_argument("--speed", type=int, default=default_new_baudrate, help=f"Post-init serial port baud rate, default {default_new_baudrate}")
-parser.add_argument("-S", "--size", type=int, default=MSG_LEN, help=f"Number of bytes to send in message, default {MSG_LEN}")
+parser.add_argument("-S", "--size", type=int, default=iperf_msgs.MSG_LEN, help=f"Number of bytes to send in message, default {iperf_msgs.MSG_LEN}")
 parser.add_argument("-m", "--media", default='all', choices=['all', 'plc', 'rf'], help="Select media to use. Default is both.")
 group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument("-s", "--server", action="store_true", help="Run as a server.")
@@ -224,130 +165,6 @@ def data_rx_client_callback(_, name, fields): # pylint: disable=unused-argument
     global _G_returned_data
     _G_returned_data = fields
     _G_wait_data.set()
-
-# Packet formats are all similar, we put all the fields for all the messages in there
-# and just ignore the ones that aren't relevant.
-# B  | Type
-# B  | Direction: None (0) | Tx (1)| Response (2)
-# H  | Sender short_id
-# I  | Max Packet Number
-# I  | Packet Number
-# H  | Length
-# xB | Data
-# H  | CRC16 - CRC of all bytes in this packet except the CRC
-#
-# We'll use a data length of 400 bytes. See MSG_LEN
-
-# By always using init_packet_fields() we avoid checking `except KeyValue` logic. So to simplify
-# our other functions, let's always use this to init the fields. Also important as we won't always
-# use all the fields, so we have to have them, but they might need to be set at defaults.
-def init_packet_fields():
-    fields = {}
-    fields['type'] = MSG_TYPE_NONE
-    fields['direction'] = MSG_DIR_NONE
-    fields['sender_id'] = connman.my_short_address
-    fields['max_num'] = MSG_MAX_PACKETS
-    fields['packet_num'] = 0
-    fields['data'] = b''
-    fields['crc'] = 0
-    fields['computed_crc'] = 0
-    return fields
-
-MSG_HEAD_FORMAT = "<BBHIIH"
-MSG_DATA_FORMAT = "{length}s"
-MSG_CRC_FORMAT = "H"
-
-def encode_packet(fields):
-    length = len(fields['data'])
-    msg = struct.pack(f"<BBHIIH{length}s",
-                      fields['type'], fields['direction'],
-                      fields['sender_id'], fields['max_num'],
-                      fields['packet_num'], length, fields['data'])
-    computed_crc = crc16.bit_by_bit_fast(msg)
-    complete_msg = msg + struct.pack("<H", computed_crc)
-    return complete_msg
-
-def decode_packet(data):
-    fields = {}
-    fmt = "<BBHIIH"
-    header = struct.unpack_from(fmt, data)
-    fields['type'] = header[0]
-    fields['direction'] = header[1]
-    fields['sender_id'] = header[2]
-    fields['max_num'] = header[3]
-    fields['packet_num'] = header[4]
-    length = header[5]
-    offset = struct.calcsize(fmt)
-    fmt = f"<{length}s"
-    fields['data'] = struct.unpack_from(fmt, data, offset)[0]
-    offset = offset + struct.calcsize(fmt)
-    fields['crc'] = struct.unpack_from("<H", data, offset)[0]
-    fields['computed_crc'] = crc16.bit_by_bit_fast(data[0:offset])
-    logging.debug(f"CRC computed on data packet {fields['computed_crc']:04x}, CRC Rx {fields['crc']:04x}")
-    return fields
-
-def encode_start_packet():
-    fields = init_packet_fields()
-    fields['type'] = MSG_TYPE_START
-    fields['direction'] = MSG_DIR_OUT
-    fields['max_num'] = MSG_MAX_PACKETS
-    return encode_packet(fields)
-
-def encode_start_reponse(num_packets):
-    fields = init_packet_fields()
-    fields['type'] = MSG_TYPE_START
-    fields['direction'] = MSG_DIR_RESP
-    fields['max_num'] = num_packets
-    return encode_packet(fields)
-
-def valid_start_packet(packet):
-    logging.debug(f"    valid_start_packet({packet})")
-    # first, validate CRC is good!
-    if packet['crc'] != packet['computed_crc']:
-        return False
-
-    # second, direction
-    if packet['direction'] != MSG_DIR_OUT:
-        return False
-
-    if packet['type'] != MSG_TYPE_START:
-        return False
-
-    return True
-
-def encode_ping_packet(packet_num):
-    fields = init_packet_fields()
-    fields['type'] = MSG_TYPE_PING
-    fields['direction'] = MSG_DIR_OUT
-    fields['max_num'] = MSG_MAX_PACKETS
-    fields['packet_num'] = packet_num
-    fields['data'] = msg_buffer
-    return encode_packet(fields)
-
-def encode_resp_packet(ping_fields):
-    fields = init_packet_fields()
-    fields['type'] = MSG_TYPE_PONG
-    fields['direction'] = MSG_DIR_RESP
-    fields['max_num'] = ping_fields['max_num']
-    fields['packet_num'] = ping_fields['packet_num']
-    fields['data'] = ping_fields['data']
-    return encode_packet(fields)
-
-def encode_nack_packet(expected, packet_num):
-    fields = init_packet_fields()
-    fields['type'] = MSG_TYPE_NACK
-    fields['direction'] = expected
-    fields['packet_num'] = packet_num
-    return encode_packet(fields)
-
-def encode_done_packet(packets_sent):
-    fields = init_packet_fields()
-    fields['type'] = MSG_TYPE_DONE
-    fields['direction'] = MSG_DIR_OUT
-    fields['max_num'] = MSG_MAX_PACKETS
-    fields['packet_num'] = packets_sent
-    return encode_packet(fields)
-
 
 ####################################################################################################
 ##  Stats and accounting
@@ -466,7 +283,7 @@ def record_stats(activity_name, client_info, stats):
 def print_stats(side, client_info, stats):
     elapsed_s = (stats['end_time_ns'] - stats['start_time_ns'])/NS_IN_SEC
     print("======================================================================================")
-    if side == MSG_DIR_OUT: # client
+    if side == iperf_msgs.MSG_DIR_OUT: # client
         print(f"iperf session results round-trip to server at {client_info['srv_id']}")
         print(f"Sent: {stats['send_count']}")
         print(f"Responses: {stats['resp_count']}")
@@ -556,13 +373,13 @@ def wait_for_connection(device, client_info):
         if not _G_returned_data['valid_msg']:
             logging.error(f"wait_for_connection - Data Rx but invalid packet: {_G_returned_data['rx_status']}")
             continue
-        packet = decode_packet(_G_returned_data['data'])
-        if valid_start_packet(packet):
+        packet = iperf_msgs.decode_packet(_G_returned_data['data'])
+        if iperf_msgs.valid_start_packet(packet):
             client_info['start_packet'] = _G_returned_data
             client_info['addr'] = packet['sender_id']
             client_info['max_num'] = packet['max_num']
             client_info['connid'] = connman.new_conn(device, packet['sender_id'], _G_returned_data['src_port'], SRV_UDP_PORT)
-            start_response = encode_start_reponse(packet['max_num'])
+            start_response = iperf_msgs.encode_start_reponse(connman.my_short_address, packet['max_num'])
             (send_ok, status) = g3_lib.send_udp(device, client_info['connid'], 1, start_response)
             if not send_ok:
                 logging.error(f"Error sending start_response: {status}")
@@ -584,7 +401,7 @@ def check_ping(packet, raw_msg, num, client_info, stats):
         return (False,num)
 
     # second, direction, short id - if these are invalid, something's weird
-    if packet['direction'] != MSG_DIR_OUT or packet['sender_id'] != client_info['addr']:
+    if packet['direction'] != iperf_msgs.MSG_DIR_OUT or packet['sender_id'] != client_info['addr']:
         stats['corrupted_count'] = stats['corrupted_count'] + 1
         print("BAD META")
         return (False, num)
@@ -601,7 +418,7 @@ def check_ping(packet, raw_msg, num, client_info, stats):
 
     # validate data
     length = len(packet['data'])
-    if packet['data'] != MSG_DATA[:length]:
+    if packet['data'] != iperf_msgs.MSG_DATA[:length]:
         print("BAD DATA")
         stats['corrupted_count'] = stats['corrupted_count'] + 1
         return (False, packet['packet_num'])
@@ -611,8 +428,8 @@ def check_ping(packet, raw_msg, num, client_info, stats):
 
     return (True, packet['packet_num'])
 
-def send_nack(device, client_info, expected=MSG_TYPE_PING, packet_num=0xffffffff):
-    packet = encode_nack_packet(expected, packet_num)
+def send_nack(device, client_info, expected=iperf_msgs.MSG_TYPE_PING, packet_num=0xffffffff):
+    packet = iperf_msgs.encode_nack_packet(connman.my_short_address, expected, packet_num)
     (send_ok, status) = g3_lib.send_udp(device, client_info['connid'], 200, packet)
     if not send_ok:
         logging.error(f"Error sending NACK: {status}")
@@ -645,7 +462,7 @@ def do_echos(device, client_info, stats):
             stats['corrupted_count'] = stats['corrupted_count'] + 1
             continue
 
-        packet = decode_packet(raw_msg['data'])
+        packet = iperf_msgs.decode_packet(raw_msg['data'])
 
         # When we're in this mode, only accept from our client
         if client_info['addr'] != g3_comms.g3_msgs.hi_short_addr_from_ipaddr(raw_msg['src_addr']):
@@ -656,15 +473,15 @@ def do_echos(device, client_info, stats):
         stats['rx_count'] = stats['rx_count'] + 1
 
         # Now, figure out the type and do the right thing; We'll assume this is a valid bit of data
-        if packet['type'] == MSG_TYPE_START:
+        if packet['type'] == iperf_msgs.MSG_TYPE_START:
             done = True
             continue
-        if packet['type'] == MSG_TYPE_DONE:
+        if packet['type'] == iperf_msgs.MSG_TYPE_DONE:
             stats['send_count'] = packet['packet_num']
             done = True
             continue
 
-        if packet['type'] == MSG_TYPE_PING:
+        if packet['type'] == iperf_msgs.MSG_TYPE_PING:
             (ping_ok, msg_number) = check_ping(packet, raw_msg, msg_number, client_info, stats)
             # Note in the case of skips, we update msg_number to the new packet number. We only
             # increase the number, anything that decreases it is considered corrupted.
@@ -676,7 +493,7 @@ def do_echos(device, client_info, stats):
 
         if ping_ok:
             # If we got this far, we have a 100% valid packet, now send the response
-            resp_packet = encode_resp_packet(packet)
+            resp_packet = iperf_msgs.encode_resp_packet(connman.my_short_address, packet)
             (send_ok, status) = g3_lib.send_udp(device, client_info['connid'], handle, resp_packet, print_progress=True)
             if not send_ok:
                 logging.error(f"Error sending response: {status}")
@@ -745,7 +562,7 @@ def do_server(device):
             connman.del_connection(device, client_info['connid'])
             print('') # get a newline because we've been printing out the rx'd packet connection number to show progress
             finalize_accounting(stats)
-            print_stats(MSG_DIR_RESP, client_info, stats)
+            print_stats(iperf_msgs.MSG_DIR_RESP, client_info, stats)
         if args.oneshotserver:
             exit_clean()
 
@@ -805,7 +622,7 @@ def init_board_client(device):
 # packets though until the response is confirmed.
 def setup_connection(device, connid, session_info):
     logging.debug("    setup_connection()")
-    start_packet = encode_start_packet()
+    start_packet = iperf_msgs.encode_start_packet(connman.my_short_address)
     _G_wait_data.clear()
     (send_ok, status) = g3_lib.send_udp(device, connid, 1, start_packet)
     if not send_ok:
@@ -818,7 +635,7 @@ def setup_connection(device, connid, session_info):
         print(f"setup_connection - Data Rx but invalid packet: {_G_returned_data['rx_status']}")
         return False
     session_info['start_response'] = _G_returned_data
-    response = decode_packet(_G_returned_data['data'])
+    response = iperf_msgs.decode_packet(_G_returned_data['data'])
     session_info['srv_id'] = response['sender_id']
     logging.debug(f"Got start response from {session_info['srv_id']}:\n{response}")
     print(f"Successfully setup connection with server at {session_info['srv_id']}")
@@ -837,12 +654,12 @@ def check_pong(packet, raw_msg, num, srv_id, stats):
         return (False,num)
 
     # OK, it could be a NACK, handle that
-    if packet['type'] == MSG_TYPE_NACK:
+    if packet['type'] == iperf_msgs.MSG_TYPE_NACK:
         stats['nacked_count'] = stats['nacked_count'] + 1
         return (False, num)
 
     # second, check type, direction, short id - if these are invalid, something's weird
-    if packet['type'] != MSG_TYPE_PONG or packet['direction'] != MSG_DIR_RESP or packet['sender_id'] != srv_id:
+    if packet['type'] != iperf_msgs.MSG_TYPE_PONG or packet['direction'] != iperf_msgs.MSG_DIR_RESP or packet['sender_id'] != srv_id:
         stats['corrupted_count'] = stats['corrupted_count'] + 1
         print("BAD META")
         return (False, num)
@@ -881,7 +698,7 @@ def do_iperfs(device, connid, session_info, stats):#pylint: disable=unused-argum
         # It will be really slow if we don't get a packet back because our timeout is 5 seconds (see
         # pp. 38-39 for why, should really be 10 seconds, but come on)
         # TODO: threaded implementation for the RX with accounting for packets
-        ping_packet = encode_ping_packet(packet_num)
+        ping_packet = iperf_msgs.encode_ping_packet(connman.my_short_address, packet_num, msg_buffer)
         _G_wait_data.clear()
         (send_ok, status) = g3_lib.send_udp(device, connid, handle, ping_packet, print_progress=True)
         if send_ok:
@@ -893,7 +710,7 @@ def do_iperfs(device, connid, session_info, stats):#pylint: disable=unused-argum
                     # even in the invalid response case, we move on to the next one
                 else:
                     pong_msg = _G_returned_data
-                    pong_packet = decode_packet(pong_msg['data'])
+                    pong_packet = iperf_msgs.decode_packet(pong_msg['data'])
                     (ok_pong, packet_num) = check_pong(pong_packet, pong_msg, packet_num, session_info['srv_id'], stats) #pylint: disable=unused-variable
                     if ok_pong:
                         stats['media_list'].append(pong_msg['prevhop_media'])
@@ -933,14 +750,14 @@ def do_iperfs(device, connid, session_info, stats):#pylint: disable=unused-argum
 
         # end condition is either sent our max packets OR args.time seconds.
         # TODO: make this configurable
-        if packet_num > MSG_MAX_PACKETS or time_elapsed(args.time, stats['start_time_ns']):
+        if packet_num > iperf_msgs.MSG_MAX_PACKETS or time_elapsed(args.time, stats['start_time_ns']):
             done = True
 
 # We're going to make sure the server receives this, but not bother having it respond.  Some 10% or
 # so packets don't arrive, so just send this several times.
 def close_connection(device, connid, sent_count):
     logging.debug("    close_connection()")
-    done_packet = encode_done_packet(sent_count)
+    done_packet = iperf_msgs.encode_done_packet(connman.my_short_address, sent_count)
     done_count = 0
     while done_count < DONE_COUNT_PACKETS and _G_running:
         (send_ok, status) = g3_lib.send_udp(device, connid, 1, done_packet)
@@ -978,7 +795,7 @@ def do_client(device):
             print('') # get a newline because we've been printing out the rx'd packet connection number to show progress
             finalize_accounting(stats)
             close_connection(device, connid, stats['send_count'])
-            print_stats(MSG_DIR_OUT, session_info, stats)
+            print_stats(iperf_msgs.MSG_DIR_OUT, session_info, stats)
             if not args.activity is None:
                 record_stats(args.activity, session_info, stats)
             break
@@ -1006,7 +823,7 @@ def main():
         g3_comms.g3_msgs.print_msg = True
 
     size = args.size
-    if size > MSG_LEN or size <= 0:
+    if size > iperf_msgs.MSG_LEN or size <= 0:
         logging.error(f"Invalid packet size selected {size}")
         sys.exit(1)
 
@@ -1061,7 +878,7 @@ def main():
     if args.server or args.oneshotserver:
         init_ret = init_board_server(device)
     else:
-        msg_buffer = MSG_DATA[:size]
+        msg_buffer = iperf_msgs.MSG_DATA[:size]
         init_ret = init_board_client(device)
 
     # Force media
