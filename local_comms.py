@@ -20,17 +20,12 @@ import g3_comms.g3_connman
 import g3_comms.g3_consts
 from g3_comms import g3_lib
 import local_comms_rx_handler
+import local_comms_cli
 
-LC_COORD_SA = 1000
-LC_CONTROL_PORT = 900
-LC_DATA_PORT = 901
-
-START_TIMEOUT = 60.0
-
-DEFAULT_CFG_FILE = "local_comms.toml"
+from local_comms_consts import * # pylint: disable=wildcard-import
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-V", "--verbosity", default="DEBUG", help="Logging verbosity. [CRITICAL, ERROR, WARNING, INFO, DEBUG]")
+parser.add_argument("-V", "--verbosity", default="INFO", help="Logging verbosity. [CRITICAL, ERROR, WARNING, INFO, DEBUG]")
 parser.add_argument("-c", "--config", default=DEFAULT_CFG_FILE, help="Name of configuration file to load")
 
 args = parser.parse_args()
@@ -72,6 +67,7 @@ _G_running = True
 def exit_clean():
     global _G_running
     _G_running = False
+    local_comms_cli.cli_shutdown()
 
 _G_sig_hit = 0
 def shutdown_handler(signum, frame): # pylint: disable=unused-argument
@@ -214,8 +210,8 @@ def coordinator_main(panel_config, serial_device):
     # Start Tx thread
 
     # Now, in our "main" thread, handle the CLI
-    while _G_running:
-        time.sleep(1.0)
+    local_comms_cli.add_device_parsers()
+    local_comms_cli.cli_main(serial_device, connman)
 
     # Kill our threads
     local_comms_rx_handler.LocalComms_Rx_Handler.quit()
@@ -277,8 +273,8 @@ def device_main(panel_config, serial_device):
 
     # Now, in our "main" thread, handle the CLI
     logging.info("Yup, Device is running!")
-    while _G_running:
-        time.sleep(1.0)
+    local_comms_cli.add_device_parsers()
+    local_comms_cli.cli_main(serial_device, connman)
 
     # Kill our threads
     local_comms_rx_handler.LocalComms_Rx_Handler.quit()
