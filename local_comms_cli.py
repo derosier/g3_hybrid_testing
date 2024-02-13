@@ -23,6 +23,7 @@ sp_log.add_argument("verbosity", help="Logging verbosity. [CRITICAL, ERROR, WARN
 sp_testpacket = lc_cli_subparsers.add_parser('txtest', help='Send test packet')
 sp_testpacket.add_argument("dest", type=int, help="Destination Short Address")
 sp_testpacket.add_argument("-c", "--count", type=int, default=1, help="Number of test packets to send.")
+sp_status = lc_cli_subparsers.add_parser('status', help='Print out system status')
 
 # Add any Coordinator-only commands
 def add_coordinator_parsers():
@@ -71,7 +72,16 @@ def do_txtest(serial_device, connman, sa_dest, numpackets):
     # Cleanup connection
     connman.del_connection(serial_device, connid)
 
-def cli_main(serial_device, connman):
+def do_status(serial_device, connman, runinfo):
+    panid = g3_lib.get_panid(serial_device)
+    sa = g3_lib.get_shortid(serial_device)
+    print(f"PAN ID: {panid}")
+    print(f"Short address: {sa}")
+
+    connman.print_conn_list()
+    print(f"{runinfo}")
+
+def cli_main(serial_device, connman, runinfo):
     global cli_args
     global _G_cli_running
     argparse.ArgumentParser.exit = interactive_parser_error
@@ -98,6 +108,8 @@ def cli_main(serial_device, connman):
                     g3_comms.g3_tx.cmd_verbose = False
             elif cli_args.cmd == 'txtest':
                 do_txtest(serial_device, connman, cli_args.dest, cli_args.count)
+            elif cli_args.cmd == 'status':
+                do_status(serial_device, connman, runinfo)
             else:
                 print(f"Unknown command: {cli_args}")
 

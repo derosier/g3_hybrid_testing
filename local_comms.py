@@ -24,6 +24,14 @@ import local_comms_cli
 
 from local_comms_consts import * # pylint: disable=wildcard-import
 
+runinfo = {
+    'lcn_cfg': {},
+    'pairn_cfg': {},
+    'net_cfg': {},
+    'net_mode': 'none',
+    'panel_config': {},
+}
+
 parser = argparse.ArgumentParser()
 parser.add_argument("-V", "--verbosity", default="INFO", help="Logging verbosity. [CRITICAL, ERROR, WARNING, INFO, DEBUG]")
 parser.add_argument("-c", "--config", default=DEFAULT_CFG_FILE, help="Name of configuration file to load")
@@ -177,11 +185,13 @@ def coordinator_main(panel_config, serial_device):
     # Coordinators always start in LCN mode. But if we've never started before, we'll need to do
     # some setup. This function will take what the config file gave us and check if we've got
     # session information. If no parameters, we'll create them.
-    lcn_config = lcn_parmeters_init(panel_config)
-    lcn_config['sa'] = LC_COORD_SA
+    lcn_cfg = lcn_parmeters_init(panel_config)
+    lcn_cfg['sa'] = LC_COORD_SA
+    runinfo['lcn_cfg'] = lcn_cfg
+    runinfo['net_mode'] = 'lcn'
 
     # Start our LCN
-    setup_network(serial_device, lcn_config)
+    setup_network(serial_device, lcn_cfg)
     (sw_reset, status) = g3_lib.sw_reset(serial_device, panel_config['panel_type'], 'ipv6_boot')
     if not sw_reset:
         logging.error(f"Unable to perform a SWRESET: {status}")
@@ -211,13 +221,13 @@ def coordinator_main(panel_config, serial_device):
 
     # Now, in our "main" thread, handle the CLI
     local_comms_cli.add_device_parsers()
-    local_comms_cli.cli_main(serial_device, connman)
+    local_comms_cli.cli_main(serial_device, connman, runinfo)
 
     # Kill our threads
     local_comms_rx_handler.LocalComms_Rx_Handler.quit()
     rx_handler_thread.join()
 
-    panel_config['local comms'] = lcn_config
+    panel_config['local comms'] = lcn_cfg
     save_config('c_session.toml', panel_config)
 
 
@@ -232,15 +242,20 @@ def device_main(panel_config, serial_device):
 
     # If this Device has run an LCN before, then we'll have configuration available.
     lcn_cfg = get_lcn_cfg(panel_config)
+    runinfo['lcn_cfg'] = lcn_cfg
     if lcn_cfg:
         # start an LCN network
         net_cfg = lcn_cfg
         node_type = 'device'
+        runinfo['net_mode'] = 'lcn'
     else:
         net_cfg = init_pair_network_cfg(panel_config)
         node_type = 'coordinator'
+        runinfo['net_mode'] = 'pairing'
         logging.error("Not ready to do a pairing network yet, quitting")
         return
+
+    runinfo['net_cfg'] = net_cfg
 
     # Start our network
     setup_network(serial_device, net_cfg)
@@ -274,7 +289,7 @@ def device_main(panel_config, serial_device):
     # Now, in our "main" thread, handle the CLI
     logging.info("Yup, Device is running!")
     local_comms_cli.add_device_parsers()
-    local_comms_cli.cli_main(serial_device, connman)
+    local_comms_cli.cli_main(serial_device, connman, runinfo)
 
     # Kill our threads
     local_comms_rx_handler.LocalComms_Rx_Handler.quit()
@@ -318,6 +333,7 @@ def main():
 
     panel_config = {}
     panel_config = load_config(args.config)
+    runinfo['panel_config'] = panel_config
 
     logging.info(f"Configuration loaded: {panel_config}")
 
