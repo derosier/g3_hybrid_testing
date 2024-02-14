@@ -145,7 +145,15 @@ def lcn_parmeters_init(panel_config):
         lcn_cfg['key_created'] = time.time()
         lcn_cfg['session_key'] = secrets.token_bytes(g3_comms.g3_consts.G3_PSK_LEN)
         lcn_cfg['pan'] = int.from_bytes(secrets.token_bytes(2), byteorder='big')
+        while lcn_cfg['pan'] <= LC_MAX_PAIR_PANID:
+            lcn_cfg['pan'] = int.from_bytes(secrets.token_bytes(2), byteorder='big')
+        lcn_cfg['devicetype'] = 'coordinator'
 
+    if 'devicetype' not in lcn_cfg.keys():
+        print('devicetype not found')
+        lcn_cfg['devicetype'] = panel_config['panel_type']
+    else:
+        print(f'lcn_cfg["devicetype"]: {lcn_cfg["devicetype"]}')
     return lcn_cfg
 
 def get_lcn_cfg(panel_config):
@@ -156,6 +164,7 @@ def get_lcn_cfg(panel_config):
                 lcn_cfg = panel_config['local comms']
                 lcn_cfg['session_key'] = bytes.fromhex(lcn_cfg['session_key'])
                 lcn_cfg['sa'] = -1 # if this got saved, ignore it
+                lcn_cfg['devicetype'] = panel_config['panel_type']
             except KeyError:
                 lcn_cfg = None
 
@@ -173,6 +182,35 @@ def setup_network(serial_device, net_cfg):
         g3_lib.set_nvm_shortaddr(serial_device, net_cfg['sa'])
     g3_lib.set_nvm_psk(serial_device, 0, net_cfg['session_key'])
 
+def start_network(serial_device, net_cfg):
+    # Start our network
+    setup_network(serial_device, net_cfg)
+    (sw_reset, status) = g3_lib.sw_reset(serial_device, net_cfg['devicetype'], 'ipv6_boot')
+    if not sw_reset:
+        logging.error(f"Unable to perform a SWRESET: {status}")
+
+    # Wait until we're reset
+    # Indicator = Reply G3BOOT-SRV-START: {'error_code': 0, 'status': 'G3_SUCCESS'}
+    _G_wait_srv_start.clear()
+    if not _G_wait_srv_start.wait(START_TIMEOUT):
+        logging.error("Never received network start, timeout.")
+    if not g3_lib.check_status_ok(_G_returned_srv_start):
+        logging.error("Network start unsuccessful.")
+        return
+
+    # Setup connections
+    connman.print_info()
+    _ = connman.new_conn(serial_device, -1, 0, LC_CONTROL_PORT)
+    _ = connman.new_conn(serial_device, -1, 0, LC_DATA_PORT)
+    connman.print_conn_list()
+
+    # Accept Rx and Tx
+    local_comms_rx_handler.LocalComms_Rx_Handler.HandleRX = True
+
+def stop_network(serial_device):
+    local_comms_rx_handler.LocalComms_Rx_Handler.HandleRX = False
+    connman.clear_connections(serial_device)
+
 def coordinator_main(panel_config, serial_device):
     logging.info("### Started Coordinator")
 
@@ -189,28 +227,10 @@ def coordinator_main(panel_config, serial_device):
     lcn_cfg['sa'] = LC_COORD_SA
     runinfo['lcn_cfg'] = lcn_cfg
     runinfo['net_mode'] = 'lcn'
+    net_cfg = lcn_cfg
+    runinfo['net_cfg'] = net_cfg
 
-    # Start our LCN
-    setup_network(serial_device, lcn_cfg)
-    (sw_reset, status) = g3_lib.sw_reset(serial_device, panel_config['panel_type'], 'ipv6_boot')
-    if not sw_reset:
-        logging.error(f"Unable to perform a SWRESET: {status}")
-
-    # Wait until we're reset
-    # Indicator = Reply G3BOOT-SRV-START: {'error_code': 0, 'status': 'G3_SUCCESS'}
-    _G_wait_srv_start.clear()
-    if not _G_wait_srv_start.wait(START_TIMEOUT):
-        logging.error("Never received G3BOOT-SRV-START, timeout.")
-    if not g3_lib.check_status_ok(_G_returned_srv_start):
-        logging.error("G3BOOT-SRV-START unsuccessful.")
-        return
-
-    # Setup connections
-    connman.init_setup(serial_device)
-    connman.print_info()
-    _ = connman.new_conn(serial_device, -1, 0, LC_CONTROL_PORT)
-    _ = connman.new_conn(serial_device, -1, 0, LC_DATA_PORT)
-    connman.print_conn_list()
+    start_network(serial_device, net_cfg)
 
     # Start Rx handler thread
     rx_handler = local_comms_rx_handler.LocalComms_Rx_Handler(serial_device)
@@ -263,27 +283,7 @@ def device_main(panel_config, serial_device):
 
     runinfo['net_cfg'] = net_cfg
 
-    # Start our network
-    setup_network(serial_device, net_cfg)
-    (sw_reset, status) = g3_lib.sw_reset(serial_device, node_type, 'ipv6_boot')
-    if not sw_reset:
-        logging.error(f"Unable to perform a SWRESET: {status}")
-
-    # Wait until we're reset
-    # Indicator = Reply G3BOOT-SRV-START: {'error_code': 0, 'status': 'G3_SUCCESS'}
-    _G_wait_srv_start.clear()
-    if not _G_wait_srv_start.wait(START_TIMEOUT):
-        logging.error("Never received network start, timeout.")
-    if not g3_lib.check_status_ok(_G_returned_srv_start):
-        logging.error("Network start unsuccessful.")
-        return
-
-    # Setup connections
-    connman.init_setup(serial_device)
-    connman.print_info()
-    _ = connman.new_conn(serial_device, -1, 0, LC_CONTROL_PORT)
-    _ = connman.new_conn(serial_device, -1, 0, LC_DATA_PORT)
-    connman.print_conn_list()
+    start_network(serial_device, net_cfg)
 
     # Start Rx handler thread
     rx_handler = local_comms_rx_handler.LocalComms_Rx_Handler(serial_device)
@@ -370,6 +370,9 @@ def main():
         g3_comms.g3_rx.G3Rx.quit()
         rx_thread.join()
         sys.exit(1)
+
+    connman.init_setup(serial_device)
+    connman.clear_connections(serial_device)
 
     if panel_config['panel_type'] == 'coordinator':
         logging.info("Designated as the Coordinator panel")

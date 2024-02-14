@@ -14,6 +14,7 @@ def data_rx_callback(_, name, fields): # pylint: disable=unused-argument
 class LocalComms_Rx_Handler():
     # class quit variable will cause any/all instances to quit
     _quit = False
+    HandleRX = False
 
     def __init__(self, serdev):
         self.device = serdev
@@ -29,7 +30,8 @@ class LocalComms_Rx_Handler():
             if not _G_returned_data['valid_msg']:
                 logging.error(f"wait_for_connection - Data Rx but invalid packet: {_G_returned_data['rx_status']}")
                 continue
-            self._rx_packet(_G_returned_data)
+            if LocalComms_Rx_Handler.HandleRX:
+                self._rx_packet(_G_returned_data)
 
     def quit(): # pylint: disable=no-method-argument
         LocalComms_Rx_Handler._quit = True
