@@ -219,11 +219,17 @@ def coordinator_main(panel_config, serial_device):
 
     # Start Tx thread
 
-    # Now, in our "main" thread, handle the CLI
-    local_comms_cli.add_device_parsers()
-    local_comms_cli.cli_main(serial_device, connman, runinfo)
+    # Start cli thread
+    cli_handler_thread = threading.Thread(target=local_comms_cli.cli_main, args=(serial_device, connman, runinfo))
+    cli_handler_thread.start()
+
+    coord_running = True
+    while coord_running:
+        time.sleep(0.5)
+        coord_running = local_comms_cli.cli_is_running()
 
     # Kill our threads
+    cli_handler_thread.join()
     local_comms_rx_handler.LocalComms_Rx_Handler.quit()
     rx_handler_thread.join()
 
@@ -286,12 +292,17 @@ def device_main(panel_config, serial_device):
 
     # Start Tx thread
 
-    # Now, in our "main" thread, handle the CLI
-    logging.info("Yup, Device is running!")
-    local_comms_cli.add_device_parsers()
-    local_comms_cli.cli_main(serial_device, connman, runinfo)
+    # Start cli thread
+    cli_handler_thread = threading.Thread(target=local_comms_cli.cli_main, args=(serial_device, connman, runinfo))
+    cli_handler_thread.start()
+
+    coord_running = True
+    while coord_running:
+        time.sleep(0.5)
+        coord_running = local_comms_cli.cli_is_running()
 
     # Kill our threads
+    cli_handler_thread.join()
     local_comms_rx_handler.LocalComms_Rx_Handler.quit()
     rx_handler_thread.join()
 

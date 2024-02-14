@@ -14,6 +14,9 @@ def cli_shutdown():
     global _G_cli_running
     _G_cli_running = False
 
+def cli_is_running():
+    return _G_cli_running
+
 # These are the commands accessable no matter which state we're running in
 lc_cli_parser = argparse.ArgumentParser(exit_on_error=False)
 lc_cli_subparsers = lc_cli_parser.add_subparsers(dest='cmd')
@@ -92,9 +95,6 @@ def cli_main(serial_device, connman, runinfo):
         if cli_args.cmd:
             if cli_args.cmd =='hello':
                 print("Hi!")
-            elif cli_args.cmd == 'quit':
-                _G_cli_running = False
-                break
             elif cli_args.cmd == 'log':
                 print(f"Setting logging verbosity to {cli_args.verbosity.upper()}")
                 logging.getLogger().setLevel(cli_args.verbosity.upper())
@@ -131,6 +131,7 @@ def cli_main(serial_device, connman, runinfo):
 
         cli_args.cmd = None # clear this out, because if we don't we'll repeat the last command on error or help
         if user_input.strip() in ('quit', 'end', 'exit'):
+            _G_cli_running = False
             break
         if user_input.strip() in ('?', 'help'): # -h and --help will work, but they're part of the parser
             lc_cli_parser.print_help()
