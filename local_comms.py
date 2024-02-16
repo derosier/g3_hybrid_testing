@@ -8,9 +8,12 @@ import signal
 import time
 import secrets
 import sys
+import queue
 
 import toml
 import serial
+
+import iperf_msgs
 
 import g3_comms.g3_rx
 import g3_comms.g3_tx
@@ -183,6 +186,7 @@ def setup_network(serial_device, net_cfg):
     g3_lib.set_nvm_psk(serial_device, 0, net_cfg['session_key'])
 
 def start_network(serial_device, net_cfg):
+    logging.info(f"Starting network ({net_cfg})")
     # Start our network
     setup_network(serial_device, net_cfg)
     (sw_reset, status) = g3_lib.sw_reset(serial_device, net_cfg['devicetype'], 'ipv6_boot')
@@ -211,8 +215,39 @@ def stop_network(serial_device):
     local_comms_rx_handler.LocalComms_Rx_Handler.HandleRX = False
     connman.clear_connections(serial_device)
 
+def do_status(serial_device, state):
+    print(f"Current running state: {state}")
+    panid = g3_lib.get_panid(serial_device)
+    sa = g3_lib.get_shortid(serial_device)
+    print(f"PAN ID: {panid}")
+    print(f"Short address: {sa}")
+
+    connman.print_conn_list()
+    print(f"{runinfo}")
+
+def do_txtest(serial_device, sa_dest, numpackets):
+    logging.debug(f"do_txtest({sa_dest}, {numpackets})")
+    # Setup connection to sa_dest
+    connid = connman.new_conn(serial_device, sa_dest, LC_CONTROL_PORT, LC_CONTROL_PORT)
+
+    for i in range(0, numpackets):
+        # Encode a g3_iperf ping packet
+        msg_buffer = iperf_msgs.MSG_DATA[:400]
+        ping_packet = iperf_msgs.encode_ping_packet(connman.my_short_address, i, msg_buffer)
+
+        # Send the packet
+        (send_ok, status) = g3_lib.send_udp(serial_device, connid, i, ping_packet)
+        if not send_ok:
+            logging.error(f"Error sending ping: {status}")
+
+    # Cleanup connection
+    connman.del_connection(serial_device, connid)
+
 def coordinator_main(panel_config, serial_device):
     logging.info("### Started Coordinator")
+
+    state = 'start'
+    mailbox = queue.Queue()
 
     # 1. Setup hooks
     g3_lib.set_hook(net_start_callback, ['G3BOOT-SRV-START'])
@@ -231,6 +266,7 @@ def coordinator_main(panel_config, serial_device):
     runinfo['net_cfg'] = net_cfg
 
     start_network(serial_device, net_cfg)
+    state = 'lcn'
 
     # Start Rx handler thread
     rx_handler = local_comms_rx_handler.LocalComms_Rx_Handler(serial_device)
@@ -240,13 +276,27 @@ def coordinator_main(panel_config, serial_device):
     # Start Tx thread
 
     # Start cli thread
-    cli_handler_thread = threading.Thread(target=local_comms_cli.cli_main, args=(serial_device, connman, runinfo))
+    cli_handler_thread = threading.Thread(target=local_comms_cli.cli_main, args=[mailbox])
     cli_handler_thread.start()
 
-    coord_running = True
-    while coord_running:
-        time.sleep(0.5)
-        coord_running = local_comms_cli.cli_is_running()
+    while state != 'quit':
+        if not local_comms_cli.cli_is_running():
+            state = 'quit'
+        try:
+            message = mailbox.get(block=True, timeout=1.0)
+        except queue.Empty:
+            continue
+        logging.debug(f"Processing command {message['type']}")
+        if message['type'] == 'hello':
+            print("Got 'hello' in coordinator thread.")
+        elif message['type'] == 'status':
+            do_status(serial_device, state)
+        elif message['type'] == 'txtest':
+            do_txtest(serial_device, message['dest'], message['count'])
+        elif message['type'] == 'quit':
+            state = 'quit'
+        else:
+            print(f"Unknown message {message['type']}")
 
     # Kill our threads
     cli_handler_thread.join()
@@ -260,6 +310,9 @@ def coordinator_main(panel_config, serial_device):
 def device_main(panel_config, serial_device):
     logging.info("### Started Device")
 
+    state = 'starting'
+    mailbox = queue.Queue()
+
     # 1. Setup hooks
     g3_lib.set_hook(net_start_callback, ['G3BOOT-SRV-START'])
     g3_lib.set_hook(net_start_callback, ['G3BOOT-DEV-START'])
@@ -272,8 +325,8 @@ def device_main(panel_config, serial_device):
     if lcn_cfg:
         # start an LCN network
         net_cfg = lcn_cfg
-        node_type = 'device'
         runinfo['net_mode'] = 'lcn'
+        state = 'lcn'
     else:
         net_cfg = init_pair_network_cfg(panel_config)
         node_type = 'coordinator'
@@ -293,7 +346,7 @@ def device_main(panel_config, serial_device):
     # Start Tx thread
 
     # Start cli thread
-    cli_handler_thread = threading.Thread(target=local_comms_cli.cli_main, args=(serial_device, connman, runinfo))
+    cli_handler_thread = threading.Thread(target=local_comms_cli.cli_main, args=[mailbox])
     cli_handler_thread.start()
 
     coord_running = True

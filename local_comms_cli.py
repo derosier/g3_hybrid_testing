@@ -1,13 +1,8 @@
 import logging
 import argparse
 
-import iperf_msgs
-
 import g3_comms.g3_msgs
 import g3_comms.g3_tx
-from g3_comms import g3_lib
-
-import local_comms_consts as LCC
 
 _G_cli_running = True
 def cli_shutdown():
@@ -57,34 +52,7 @@ def interactive_parser_error(self=None, status=0, message=None): #pylint: disabl
         print(f"{message}")
     raise ParserException()
 
-def do_txtest(serial_device, connman, sa_dest, numpackets):
-    logging.debug(f"do_txtest({sa_dest}, {numpackets})")
-    # Setup connection to sa_dest
-    connid = connman.new_conn(serial_device, sa_dest, LCC.LC_CONTROL_PORT, LCC.LC_CONTROL_PORT)
-
-    for i in range(0, numpackets):
-        # Encode a g3_iperf ping packet
-        msg_buffer = iperf_msgs.MSG_DATA[:400]
-        ping_packet = iperf_msgs.encode_ping_packet(connman.my_short_address, i, msg_buffer)
-
-        # Send the packet
-        (send_ok, status) = g3_lib.send_udp(serial_device, connid, i, ping_packet)
-        if not send_ok:
-            logging.error(f"Error sending ping: {status}")
-
-    # Cleanup connection
-    connman.del_connection(serial_device, connid)
-
-def do_status(serial_device, connman, runinfo):
-    panid = g3_lib.get_panid(serial_device)
-    sa = g3_lib.get_shortid(serial_device)
-    print(f"PAN ID: {panid}")
-    print(f"Short address: {sa}")
-
-    connman.print_conn_list()
-    print(f"{runinfo}")
-
-def cli_main(serial_device, connman, runinfo):
+def cli_main(mailbox):
     global cli_args
     global _G_cli_running
     argparse.ArgumentParser.exit = interactive_parser_error
@@ -95,6 +63,7 @@ def cli_main(serial_device, connman, runinfo):
         if cli_args.cmd:
             if cli_args.cmd =='hello':
                 print("Hi!")
+                mailbox.put({'type': 'hello'})
             elif cli_args.cmd == 'log':
                 print(f"Setting logging verbosity to {cli_args.verbosity.upper()}")
                 logging.getLogger().setLevel(cli_args.verbosity.upper())
@@ -107,9 +76,9 @@ def cli_main(serial_device, connman, runinfo):
                     g3_comms.g3_msgs.print_msg = False
                     g3_comms.g3_tx.cmd_verbose = False
             elif cli_args.cmd == 'txtest':
-                do_txtest(serial_device, connman, cli_args.dest, cli_args.count)
+                mailbox.put({'type': 'txtest', 'dest': cli_args.dest, 'count': cli_args.count})
             elif cli_args.cmd == 'status':
-                do_status(serial_device, connman, runinfo)
+                mailbox.put({'type': 'status'})
             else:
                 print(f"Unknown command: {cli_args}")
 
@@ -142,3 +111,4 @@ def cli_main(serial_device, connman, runinfo):
             print('Invalid command input')
         except ParserException:
             pass # we want to catch it, but we handle messages in the error function.
+    mailbox.put({'type': 'quit'})
