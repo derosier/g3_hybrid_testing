@@ -8,6 +8,7 @@ import signal
 import time
 import secrets
 import sys
+import hashlib
 import queue
 
 import toml
@@ -101,13 +102,13 @@ def shutdown_handler(signum, frame): # pylint: disable=unused-argument
 # Reply G3BOOT-SRV-START: {'error_code': 0, 'status': 'G3_SUCCESS'}
 # Used when we boot into coordinator mode. Allows us to pause after our swreset and know we're
 # running.
-_G_wait_srv_start = threading.Event()
+_G_wait_net_start = threading.Event()
 _G_returned_srv_start = {}
 def net_start_callback(_, name, fields):
     global _G_returned_srv_start
     logging.info(f"net_start_callback({_}, {name}, {fields})")
     _G_returned_srv_start = fields
-    _G_wait_srv_start.set()
+    _G_wait_net_start.set()
 
 # Happens when a device joins the PAN
 # Reply G3BOOT-SRV-JOIN: {'error_code': 0, 'e_addr': 12336387418442792960, 'short_id': 1}
@@ -147,9 +148,9 @@ def lcn_parmeters_init(panel_config):
         # if we don't have a last saved state, then we need to initialize it
         lcn_cfg['key_created'] = time.time()
         lcn_cfg['session_key'] = secrets.token_bytes(g3_comms.g3_consts.G3_PSK_LEN)
-        lcn_cfg['pan'] = int.from_bytes(secrets.token_bytes(2), byteorder='big')
+        lcn_cfg['pan'] = int.from_bytes(secrets.token_bytes(2), byteorder='big') % LC_MAX_LCN_PANID
         while lcn_cfg['pan'] <= LC_MAX_PAIR_PANID:
-            lcn_cfg['pan'] = int.from_bytes(secrets.token_bytes(2), byteorder='big')
+            lcn_cfg['pan'] = int.from_bytes(secrets.token_bytes(2), byteorder='big') % LC_MAX_LCN_PANID
         lcn_cfg['devicetype'] = 'coordinator'
 
     if 'devicetype' not in lcn_cfg.keys():
@@ -173,9 +174,29 @@ def get_lcn_cfg(panel_config):
 
     return lcn_cfg
 
-def init_pair_network_cfg(panel_config):
-    logging.info(f"init_pair_network_cfg({panel_config})")
-    return {}
+def create_pair_network_cfg(uuid):
+    logging.info(f"create_pair_network_cfg({uuid})")
+    pair_cfg = {}
+
+    # For a network config, we need three things:
+    #     * PANID
+    #     * Short ID (for coordinator)
+    #     * PSK
+    #
+    # The PANID and PSK can be derived from the panel identification information.
+    # We'll use a sha256 hash on the UUID (encoded per hashlib's requirements).
+    # From this, the first 16 bytes will be our PSK, and the last two bytes we'll turn
+    # into an integer for the PANID. We will ensure our PANID is < 5000, because PANIDs >= 5000
+    # are defined for our LCNs.
+    # The Coordinator short ID will be a constant.
+    id_hash = hashlib.sha256(uuid.encode()).digest()
+    pair_cfg['session_key'] = id_hash[:16]
+    pair_cfg['pan'] = int.from_bytes(id_hash[30:], byteorder='big') % LC_MAX_PAIR_PANID
+    if pair_cfg['pan'] == 0:
+        pair_cfg['pan'] = 1
+    pair_cfg['sa'] = LC_PAIR_SA
+
+    return pair_cfg
 
 def setup_network(serial_device, net_cfg):
     logging.info(f"setup_network({net_cfg})")
@@ -195,14 +216,15 @@ def start_network(serial_device, net_cfg):
 
     # Wait until we're reset
     # Indicator = Reply G3BOOT-SRV-START: {'error_code': 0, 'status': 'G3_SUCCESS'}
-    _G_wait_srv_start.clear()
-    if not _G_wait_srv_start.wait(START_TIMEOUT):
+    _G_wait_net_start.clear()
+    if not _G_wait_net_start.wait(START_TIMEOUT):
         logging.error("Never received network start, timeout.")
     if not g3_lib.check_status_ok(_G_returned_srv_start):
         logging.error("Network start unsuccessful.")
         return
 
     # Setup connections
+    connman.req_info(serial_device)  # this reloads the cached info so it isn't stale
     connman.print_info()
     _ = connman.new_conn(serial_device, -1, 0, LC_CONTROL_PORT)
     _ = connman.new_conn(serial_device, -1, 0, LC_DATA_PORT)
@@ -250,7 +272,7 @@ def coordinator_main(panel_config, serial_device):
     mailbox = queue.Queue()
 
     # 1. Setup hooks
-    g3_lib.set_hook(net_start_callback, ['G3BOOT-SRV-START'])
+    g3_lib.set_hook(net_start_callback, ['G3BOOT-SRV-START', 'G3BOOT-DEV-START'])
     g3_lib.set_hook(join_callback, ['G3BOOT-SRV-JOIN'])
     g3_lib.set_hook(local_comms_rx_handler.data_rx_callback, ['G3UDP-DATA.Ind'])
     g3_lib.set_hook(local_comms_rx_handler.data_rx_callback, ['META-ERROR'])
@@ -295,6 +317,14 @@ def coordinator_main(panel_config, serial_device):
             do_txtest(serial_device, message['dest'], message['count'])
         elif message['type'] == 'quit':
             state = 'quit'
+        elif message['type'] == 'pair':
+            stop_network(serial_device)
+            net_cfg = create_pair_network_cfg(message['uuid'])
+            net_cfg['devicetype'] = 'device' # create_pair_network_cfg doesn't set this
+            runinfo['net_mode'] = 'pairing'
+            runinfo['net_cfg'] = net_cfg
+            start_network(serial_device, net_cfg)
+            state = 'pairing'
         else:
             print(f"Unknown message {message['type']}")
 
@@ -314,8 +344,8 @@ def device_main(panel_config, serial_device):
     mailbox = queue.Queue()
 
     # 1. Setup hooks
-    g3_lib.set_hook(net_start_callback, ['G3BOOT-SRV-START'])
-    g3_lib.set_hook(net_start_callback, ['G3BOOT-DEV-START'])
+    g3_lib.set_hook(net_start_callback, ['G3BOOT-SRV-START', 'G3BOOT-DEV-START'])
+    g3_lib.set_hook(join_callback, ['G3BOOT-SRV-JOIN'])
     g3_lib.set_hook(local_comms_rx_handler.data_rx_callback, ['G3UDP-DATA.Ind'])
     g3_lib.set_hook(local_comms_rx_handler.data_rx_callback, ['META-ERROR'])
 
@@ -328,11 +358,10 @@ def device_main(panel_config, serial_device):
         runinfo['net_mode'] = 'lcn'
         state = 'lcn'
     else:
-        net_cfg = init_pair_network_cfg(panel_config)
-        node_type = 'coordinator'
+        net_cfg = create_pair_network_cfg(panel_config['pcm']['uuid'])
+        net_cfg['devicetype'] = 'coordinator' # create_pair_network_cfg doesn't set this
         runinfo['net_mode'] = 'pairing'
-        logging.error("Not ready to do a pairing network yet, quitting")
-        return
+        state = 'pairing'
 
     runinfo['net_cfg'] = net_cfg
 
@@ -349,10 +378,24 @@ def device_main(panel_config, serial_device):
     cli_handler_thread = threading.Thread(target=local_comms_cli.cli_main, args=[mailbox])
     cli_handler_thread.start()
 
-    coord_running = True
-    while coord_running:
-        time.sleep(0.5)
-        coord_running = local_comms_cli.cli_is_running()
+    while state != 'quit':
+        if not local_comms_cli.cli_is_running():
+            state = 'quit'
+        try:
+            message = mailbox.get(block=True, timeout=1.0)
+        except queue.Empty:
+            continue
+        logging.debug(f"Processing command {message['type']}")
+        if message['type'] == 'hello':
+            print("Got 'hello' in coordinator thread.")
+        elif message['type'] == 'status':
+            do_status(serial_device, state)
+        elif message['type'] == 'txtest':
+            do_txtest(serial_device, message['dest'], message['count'])
+        elif message['type'] == 'quit':
+            state = 'quit'
+        else:
+            print(f"Unsupported message {message['type']}")
 
     # Kill our threads
     cli_handler_thread.join()

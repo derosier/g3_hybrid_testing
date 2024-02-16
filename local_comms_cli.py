@@ -22,6 +22,8 @@ sp_testpacket = lc_cli_subparsers.add_parser('txtest', help='Send test packet')
 sp_testpacket.add_argument("dest", type=int, help="Destination Short Address")
 sp_testpacket.add_argument("-c", "--count", type=int, default=1, help="Number of test packets to send.")
 sp_status = lc_cli_subparsers.add_parser('status', help='Print out system status')
+sp_pair = lc_cli_subparsers.add_parser('pair', help='Pair with new panel')
+sp_pair.add_argument("uuid", help="UUID of the panel to allow onto the network. Form: 'G3MOD-PCM-000A-01:JJ-9999-F4CH9'")
 
 # Add any Coordinator-only commands
 def add_coordinator_parsers():
@@ -79,6 +81,8 @@ def cli_main(mailbox):
                 mailbox.put({'type': 'txtest', 'dest': cli_args.dest, 'count': cli_args.count})
             elif cli_args.cmd == 'status':
                 mailbox.put({'type': 'status'})
+            elif cli_args.cmd == "pair":
+                mailbox.put({'type': 'pair', 'uuid': cli_args.uuid})
             else:
                 print(f"Unknown command: {cli_args}")
 
