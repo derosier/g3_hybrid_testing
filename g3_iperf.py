@@ -414,8 +414,8 @@ def check_ping(packet, raw_msg, num, client_info, stats):
         print("BAD CRC")
         return (False,num)
 
-    # second, direction, short id - if these are invalid, something's weird
-    if packet['direction'] != iperf_msgs.MSG_DIR_OUT or packet['sender_id'] != client_info['addr']:
+    # second, subtype, short id - if these are invalid, something's weird
+    if packet['subtype'] != iperf_msgs.MSG_DIR_OUT or packet['sender_id'] != client_info['addr']:
         stats['corrupted_count'] = stats['corrupted_count'] + 1
         print("BAD META")
         return (False, num)
@@ -672,8 +672,8 @@ def check_pong(packet, raw_msg, num, srv_id, stats):
         stats['nacked_count'] = stats['nacked_count'] + 1
         return (False, num)
 
-    # second, check type, direction, short id - if these are invalid, something's weird
-    if packet['type'] != iperf_msgs.MSG_TYPE_PONG or packet['direction'] != iperf_msgs.MSG_DIR_RESP or packet['sender_id'] != srv_id:
+    # second, check type, subtype, short id - if these are invalid, something's weird
+    if packet['type'] != iperf_msgs.MSG_TYPE_PONG or packet['subtype'] != iperf_msgs.MSG_DIR_RESP or packet['sender_id'] != srv_id:
         stats['corrupted_count'] = stats['corrupted_count'] + 1
         print("BAD META")
         return (False, num)
