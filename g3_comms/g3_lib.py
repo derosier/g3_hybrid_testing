@@ -23,10 +23,10 @@ def check_status_ok(fields):
         return False
     return True
 
-def hw_reset(device):
+def hw_reset(device, timeout=2.5):
     reset_cmd = g3_cmd.HWResetCmd()
     reset_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
-    fields = g3_comms.g3_tx.send_and_wait(device, reset_cmd)
+    fields = g3_comms.g3_tx.send_and_wait(device, reset_cmd, timeout=timeout)
     reset_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
     try:
         if not fields['error_code'] == 0:
@@ -37,7 +37,7 @@ def hw_reset(device):
         return False
     return True
 
-def sw_reset(device, nodetype, mode):
+def sw_reset(device, nodetype, mode, timeout=2.5):
     cmd_args = argparse.Namespace()
     cmd_args.bandplan = 'FCC'
     cmd_args.devicetype = nodetype
@@ -45,7 +45,7 @@ def sw_reset(device, nodetype, mode):
     swreset_cmd = g3_cmd.SWResetCmd()
     swreset_cmd.parse_args(cmd_args)
     swreset_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
-    fields = g3_comms.g3_tx.send_and_wait(device, swreset_cmd)
+    fields = g3_comms.g3_tx.send_and_wait(device, swreset_cmd, timeout=timeout)
     swreset_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
     if not check_status_ok(fields):
         logging.error("G3LIB-SWRESET unsuccessful.")
