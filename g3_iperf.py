@@ -348,7 +348,21 @@ def init_board_server(device):
             return False
 
     # 3. SWRESET to coordinator
-    g3_lib.sw_reset(device, 'coordinator', 'ipv6_boot')
+    retry_count = 1
+    if args.pcm:
+        retry_count = 5
+    swreset_ok = False
+    while retry_count:
+        if retry_count > 1:
+            logging.warning(f"SWRESET try {retry_count}")
+        (swreset_ok, _) = g3_lib.sw_reset(device, 'coordinator', 'ipv6_boot')
+        retry_count = retry_count - 1
+        if swreset_ok:
+            break
+        time.sleep(1)
+    if not swreset_ok:
+        logging.error("G3LIB-SWRESET unsuccessful.")
+        return False
 
     # 4. Wait until we're reset
     # Indicator = Reply G3BOOT-SRV-START: {'error_code': 0, 'status': 'G3_SUCCESS'}
