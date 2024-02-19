@@ -2,9 +2,10 @@ import logging
 import pprint
 
 from g3_comms import g3_lib
+from g3_comms.g3_msgs import parse_data
 import g3_comms.g3_consts
 
-implmented_cmds = ('get-panid', 'get-sa', 'get-nvm-help', 'get-nvm', 'set-nvm-psk', 'set-nvm-pskidx', 'set-nvm-panid', 'set-nvm-sa')
+implmented_cmds = ['get-panid', 'get-sa', 'get-nvm-help', 'get-nvm', 'set-nvm-psk', 'set-nvm-pskidx', 'set-nvm-panid', 'set-nvm-sa']
 
 class LibCLI():
     def __init__(self, subparsers):
@@ -45,7 +46,8 @@ class LibCLI():
             data = g3_lib.get_nvm(device, 'plc', args.field)
             print(f"{args.field}: {data}")
         elif args.cmd == 'set-nvm-psk':
-            (ok, status) = g3_lib.set_nvm_psk(device, args.idx, args.psk)
+            psk = parse_data(args.psk)
+            (ok, status) = g3_lib.set_nvm_psk(device, args.idx, psk)
             if ok:
                 print(f"Set PSK {args.idx} OK")
             else:
