@@ -664,8 +664,6 @@ class UDPConnSetCmd(G3Cmd):
     g3_id = 0xd3
     g3_name = 'G3UDP-CONN-SET'
     rx_msgs = ['G3UDP-CONN-SET']
-    next_port = 49152
-    next_conn_id = 0
 
     def _add_parser(self, subparsers):
         parser = subparsers.add_parser('connset', help='Setup an UDP connection')
@@ -691,19 +689,8 @@ class UDPConnSetCmd(G3Cmd):
         except AttributeError:
             self.fields['pan'] = G3C.G3_DEFAULT_PAN
         self.fields['remote_port'] = args.rport & 0xffff
-        if args.port >= 0:
-            self.fields['local_port'] = args.port & 0xffff
-        else:
-            self.fields['local_port'] = UDPConnSetCmd.next_port
-            UDPConnSetCmd.next_port = UDPConnSetCmd.next_port + 1
-        if args.connid:
-            self.fields['conn_id'] = args.connid
-        else:
-            self.fields['conn_id'] = UDPConnSetCmd.next_conn_id
-            UDPConnSetCmd.next_conn_id = UDPConnSetCmd.next_conn_id + 1
-        if self.fields['conn_id'] < 0 or self.fields['conn_id'] > 10:
-            self.fields['conn_id'] = 10
-            logging.error("Invalid connection id, using 10")
+        self.fields['local_port'] = args.port & 0xffff
+        self.fields['conn_id'] = args.connid
 
     def encode_cmd(self):
         if self.fields['addr'] == -1:
