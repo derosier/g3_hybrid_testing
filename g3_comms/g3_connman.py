@@ -5,6 +5,7 @@ import binascii
 import g3_comms.g3_tx
 import g3_comms.g3_cmd
 import g3_comms.g3_msgs
+import g3_comms.g3_lib
 
 class ConnMan():
     MAX_CONN = 0xA
@@ -176,7 +177,7 @@ class ConnMan():
         new_id = self.find_free_conn()
         if new_id is not None:
             fields = self.set_connection(device, new_id, addr, remote_port, local_port)
-            if fields['status'] != 'G3_SUCCESS':
+            if not g3_comms.g3_lib.check_status_ok(fields):
                 logging.error(f"Error when setting connection, status: {fields['status']}")
                 new_id = None
             else:
@@ -205,7 +206,7 @@ class ConnMan():
         remote_port = 0
         local_port = 0
         fields = self.set_connection(device, connid, addr, remote_port, local_port)
-        if fields['status'] != 'G3_SUCCESS':
+        if not g3_comms.g3_lib.check_status_ok(fields):
             logging.error(f"Error when deleting connection, status: {fields['status']}")
         else:
             self._del_conn(connid)
