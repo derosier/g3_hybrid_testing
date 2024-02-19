@@ -1,6 +1,9 @@
 import logging
 import threading
 
+import msg_types
+from local_comms_consts import * # pylint: disable=wildcard-import, unused-wildcard-import
+
 RX_LOOP_TIMEOUT = 1.0
 
 _G_wait_data = threading.Event()
@@ -15,12 +18,28 @@ class LocalComms_Rx_Handler():
     # class quit variable will cause any/all instances to quit
     _quit = False
     HandleRX = False
+    HandledPackets = [msg_types.MSG_TYPE_LC_REQUEST_ID,
+                      msg_types.MSG_TYPE_LC_RESPOND_ID,
+                      msg_types.MSG_TYPE_LC_LCN_INFORMATION,
+                      msg_types.MSG_TYPE_LC_LCN_INFO_CONFIRM,
+                      msg_types.MSG_TYPE_LC_SWITCH_NETWORK,
+                      msg_types.MSG_TYPE_LC_PAIR_CLEAR]
 
-    def __init__(self, serdev):
+    def __init__(self, serdev, mailbox):
         self.device = serdev
+        self.mailbox = mailbox
 
     def _rx_packet(self, data):
-        print(f"Handle data packet {data}")
+        print(f"Rx packet {data}")
+        message = {}
+        if data['dest_port'] == LC_CONTROL_PORT:
+            packet = msg_types.decode_packet(data['data'])
+            if packet['type'] in LocalComms_Rx_Handler.HandledPackets:
+                message['type'] = 'ctrl_packet'
+                message['packet'] = packet
+                self.mailbox.put(message)
+        elif data['dest_port'] == LC_DATA_PORT:
+            print("Rx DATA packet")
 
     def run(self):
         while not LocalComms_Rx_Handler._quit:
@@ -34,4 +53,5 @@ class LocalComms_Rx_Handler():
                 self._rx_packet(_G_returned_data)
 
     def quit(): # pylint: disable=no-method-argument
+        LocalComms_Rx_Handler.HandleRX = False
         LocalComms_Rx_Handler._quit = True

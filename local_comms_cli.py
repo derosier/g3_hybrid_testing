@@ -21,6 +21,10 @@ sp_log.add_argument("verbosity", help="Logging verbosity. [CRITICAL, ERROR, WARN
 sp_testpacket = lc_cli_subparsers.add_parser('txtest', help='Send test packet')
 sp_testpacket.add_argument("dest", type=int, help="Destination Short Address")
 sp_testpacket.add_argument("-c", "--count", type=int, default=1, help="Number of test packets to send.")
+sp_idreqpacket = lc_cli_subparsers.add_parser('txidreq', help='Send ID Request packet')
+sp_idreqpacket.add_argument("dest", type=int, help="Destination Short Address")
+sp_idresppacket = lc_cli_subparsers.add_parser('txidresp', help='Send ID Response packet')
+sp_idresppacket.add_argument("dest", type=int, help="Destination Short Address")
 sp_status = lc_cli_subparsers.add_parser('status', help='Print out system status')
 sp_pair = lc_cli_subparsers.add_parser('pair', help='Pair with new panel')
 sp_pair.add_argument("uuid", help="UUID of the panel to allow onto the network. Form: 'G3MOD-PCM-000A-01:JJ-9999-F4CH9'")
@@ -79,6 +83,10 @@ def cli_main(mailbox):
                     g3_comms.g3_tx.cmd_verbose = False
             elif cli_args.cmd == 'txtest':
                 mailbox.put({'type': 'txtest', 'dest': cli_args.dest, 'count': cli_args.count})
+            elif cli_args.cmd == 'txidreq':
+                mailbox.put({'type': 'txidreq', 'dest': cli_args.dest})
+            elif cli_args.cmd == 'txidresp':
+                mailbox.put({'type': 'txidresp', 'dest': cli_args.dest})
             elif cli_args.cmd == 'status':
                 mailbox.put({'type': 'status'})
             elif cli_args.cmd == "pair":

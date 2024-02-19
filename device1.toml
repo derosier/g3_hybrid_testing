@@ -3,6 +3,7 @@
 [pcm]
 gateway = false
 uuid = "G3MOD-PCM-000A-01:JJ-9999-F4CH9"
+certificate = "623f0b59649e0bc27dfdae77e1f1cf262e40e3490872a4fdfe4c8c1ed371b41ca9d46067c46f6ac5e9cc8ee70fd5a4326cd6c94eee9f72c069e912742b7f0e7e"
 
 [serial]
 pcm_pass_through = false

@@ -4,6 +4,7 @@ G3_DEFAULT_PAN = 30749
 G3_DEFAULT_PSK = b'\xafMm\xcc\xf1M\xe7\xc1\xc4#^o\xefl\x15\x1f'
 G3_DEFAULT_PSK_IDX = 0
 G3_PSK_LEN = 16
+G3_MAX_PACKET_NUM = 250
 
 # Table 12. G3 platform modes. pg 15
 G3_MODE = {

@@ -27,6 +27,8 @@ import local_comms_rx_handler
 import local_comms_cli
 
 from local_comms_consts import * # pylint: disable=wildcard-import
+import local_comms_msgs
+import msg_types
 
 runinfo = {
     'lcn_cfg': {},
@@ -116,6 +118,14 @@ def join_callback(_, name, fields):
     logging.debug(f"join_callback({_}, {name}, {fields})")
     print(f"Node with address {fields['short_id']} joined the network.")
 
+_G_packet_num = 0
+def get_next_ctrl_packet_number():
+    global _G_packet_num
+    _G_packet_num = _G_packet_num + 1
+    if _G_packet_num > g3_comms.g3_consts.G3_MAX_PACKET_NUM:
+        _G_packet_num = 1
+    return _G_packet_num
+
 def load_config(filename):
     cfg = {}
     logging.debug("Loading configuration")
@@ -198,6 +208,15 @@ def create_pair_network_cfg(uuid):
 
     return pair_cfg
 
+# must be done after we init connman in order to get the g3 MAC address
+def get_id_info(panel_config):
+    id_info = {}
+    id_info['g3_mac'] = connman.mac
+    id_info['eth_mac'] = b'\x00\x00\x00\x00\x00\x00'
+    id_info['uuid'] = panel_config['pcm']['uuid']
+    id_info['key'] = panel_config['pcm']['certificate']
+    return id_info
+
 def setup_network(serial_device, net_cfg):
     logging.info(f"setup_network({net_cfg})")
 
@@ -221,17 +240,20 @@ def start_network(serial_device, net_cfg):
         logging.error("Never received network start, timeout.")
     if not g3_lib.check_status_ok(_G_returned_srv_start):
         logging.error("Network start unsuccessful.")
-        return
+        return False
+
+    connman.req_info(serial_device)  # this reloads the cached info so it isn't stale
 
     # Setup connections
-    connman.req_info(serial_device)  # this reloads the cached info so it isn't stale
-    connman.print_info()
+    connman.clear_connections(serial_device)
     _ = connman.new_conn(serial_device, -1, 0, LC_CONTROL_PORT)
     _ = connman.new_conn(serial_device, -1, 0, LC_DATA_PORT)
-    connman.print_conn_list()
+    connman.reload_connections(serial_device)
 
     # Accept Rx and Tx
     local_comms_rx_handler.LocalComms_Rx_Handler.HandleRX = True
+
+    return True
 
 def stop_network(serial_device):
     local_comms_rx_handler.LocalComms_Rx_Handler.HandleRX = False
@@ -257,18 +279,52 @@ def do_txtest(serial_device, sa_dest, numpackets):
         msg_buffer = iperf_msgs.MSG_DATA[:400]
         ping_packet = iperf_msgs.encode_ping_packet(connman.my_short_address, i, msg_buffer)
 
+        packet_num = get_next_ctrl_packet_number()
         # Send the packet
-        (send_ok, status) = g3_lib.send_udp(serial_device, connid, i, ping_packet)
+        (send_ok, status) = g3_lib.send_udp(serial_device, connid, packet_num, ping_packet)
         if not send_ok:
             logging.error(f"Error sending ping: {status}")
 
     # Cleanup connection
     connman.del_connection(serial_device, connid)
 
+def send_req_id(serial_device, dest=LC_PAIR_SA):
+    logging.info("Requesting ID")
+    connid = connman.new_conn(serial_device, dest , LC_CONTROL_PORT, LC_CONTROL_PORT)
+    req_packet = local_comms_msgs.encode_lc_request_id_packet(connman.my_short_address, dest)
+    packet_num = get_next_ctrl_packet_number()
+    # Send the packet
+    (send_ok, status) = g3_lib.send_udp(serial_device, connid, packet_num, req_packet)
+    if not send_ok:
+        logging.error(f"Error sending id request: {status}")
+
+    # Cleanup connection
+    connman.del_connection(serial_device, connid)
+
+def send_id(serial_device, dest, id_info):
+    logging.info(f"Sending ID {dest}, {id_info}")
+    connid = connman.new_conn(serial_device, dest, LC_CONTROL_PORT, LC_CONTROL_PORT)
+    id_packet = local_comms_msgs.encode_lc_response_id_packet(connman.my_short_address, dest, id_info)
+    # Send the packet
+    packet_num = get_next_ctrl_packet_number()
+    (send_ok, status) = g3_lib.send_udp(serial_device, connid, packet_num, id_packet)
+    if not send_ok:
+        logging.error(f"Error sending id: {status}")
+
+    # Cleanup connection
+    connman.del_connection(serial_device, connid)
+
+def handle_ctrl_packet(serial_device, panel_config, packet):
+    logging.info(f"Handle packet {packet}")
+    if packet['type'] == msg_types.MSG_TYPE_LC_REQUEST_ID:
+        # we always just send back our ID info
+        id_info = get_id_info(panel_config)
+        send_id(serial_device, packet['sender_id'], id_info)
+
 def coordinator_main(panel_config, serial_device):
     logging.info("### Started Coordinator")
 
-    state = 'start'
+    state = 'lcn start'
     mailbox = queue.Queue()
 
     # 1. Setup hooks
@@ -287,11 +343,8 @@ def coordinator_main(panel_config, serial_device):
     net_cfg = lcn_cfg
     runinfo['net_cfg'] = net_cfg
 
-    start_network(serial_device, net_cfg)
-    state = 'lcn'
-
     # Start Rx handler thread
-    rx_handler = local_comms_rx_handler.LocalComms_Rx_Handler(serial_device)
+    rx_handler = local_comms_rx_handler.LocalComms_Rx_Handler(serial_device, mailbox)
     rx_handler_thread = threading.Thread(target=rx_handler.run)
     rx_handler_thread.start()
 
@@ -301,30 +354,67 @@ def coordinator_main(panel_config, serial_device):
     cli_handler_thread = threading.Thread(target=local_comms_cli.cli_main, args=[mailbox])
     cli_handler_thread.start()
 
+    message = {}
     while state != 'quit':
-        if not local_comms_cli.cli_is_running():
-            state = 'quit'
-        try:
-            message = mailbox.get(block=True, timeout=1.0)
-        except queue.Empty:
-            continue
-        logging.debug(f"Processing command {message['type']}")
-        if message['type'] == 'hello':
-            print("Got 'hello' in coordinator thread.")
-        elif message['type'] == 'status':
-            do_status(serial_device, state)
-        elif message['type'] == 'txtest':
-            do_txtest(serial_device, message['dest'], message['count'])
-        elif message['type'] == 'quit':
-            state = 'quit'
-        elif message['type'] == 'pair':
+        # First handle our state machine. Only certain states cause actions. Every action state
+        # should end in a state where we wait for our next action, and these are no-ops in our
+        # state machine.
+        if state == 'lcn start':
+            logging.info('Starting LCN network')
+            stop_network(serial_device)
+            netstart_ok = start_network(serial_device, net_cfg)
+            if netstart_ok:
+                state = 'lcn'
+                logging.info("LCN started sucessfully")
+            else:
+                logging.error("Unable to start the LCN, will retry.")
+        elif state == 'pairing start':
+            logging.info('Joining pairing network')
             stop_network(serial_device)
             net_cfg = create_pair_network_cfg(message['uuid'])
             net_cfg['devicetype'] = 'device' # create_pair_network_cfg doesn't set this
             runinfo['net_mode'] = 'pairing'
             runinfo['net_cfg'] = net_cfg
-            start_network(serial_device, net_cfg)
-            state = 'pairing'
+            netstart_ok = start_network(serial_device, net_cfg)
+            if netstart_ok:
+                logging.info("Pairing network started successfully")
+                state = 'do id request'
+            else:
+                logging.error("Unable to start pairing network, returning to LCN")
+                state = 'lcn start'
+                continue
+        elif state == 'do id request':
+            send_req_id(serial_device)
+            state = 'id requested'
+        else:
+            pass # no-opp to let us ignore certain passing states
+
+        # Next get our messages
+        if not local_comms_cli.cli_is_running():
+            state = 'quit'
+        try:
+            message = mailbox.get(block=True, timeout=0.1) # keep timeout fast so our state machine can run
+        except queue.Empty:
+            continue # no input, run the state machine
+        logging.debug(f"Processing command {message['type']}")
+        if message['type'] == 'hello':
+            print("Got 'hello' in coordinator thread.")
+        elif message['type'] == 'status':
+            connman.reload_connections(serial_device)
+            do_status(serial_device, state)
+        elif message['type'] == 'txtest':
+            do_txtest(serial_device, message['dest'], message['count'])
+        elif message['type'] == 'txidreq':
+            send_req_id(serial_device, message['dest'])
+        elif message['type'] == 'txidresp':
+            id_info = get_id_info(panel_config)
+            send_id(serial_device, message['dest'], id_info)
+        elif message['type'] == 'quit':
+            state = 'quit'
+        elif message['type'] == 'pair':
+            state = 'pairing start'
+        elif message['type'] == 'ctrl_packet':
+            handle_ctrl_packet(serial_device, panel_config, message['packet'])
         else:
             print(f"Unknown message {message['type']}")
 
@@ -368,7 +458,7 @@ def device_main(panel_config, serial_device):
     start_network(serial_device, net_cfg)
 
     # Start Rx handler thread
-    rx_handler = local_comms_rx_handler.LocalComms_Rx_Handler(serial_device)
+    rx_handler = local_comms_rx_handler.LocalComms_Rx_Handler(serial_device, mailbox)
     rx_handler_thread = threading.Thread(target=rx_handler.run)
     rx_handler_thread.start()
 
@@ -379,23 +469,32 @@ def device_main(panel_config, serial_device):
     cli_handler_thread.start()
 
     while state != 'quit':
+        # Next get our messages
         if not local_comms_cli.cli_is_running():
             state = 'quit'
         try:
-            message = mailbox.get(block=True, timeout=1.0)
+            message = mailbox.get(block=True, timeout=0.1) # keep timeout fast so our state machine can run
         except queue.Empty:
-            continue
+            continue # no input, run the state machine
         logging.debug(f"Processing command {message['type']}")
         if message['type'] == 'hello':
             print("Got 'hello' in coordinator thread.")
         elif message['type'] == 'status':
+            connman.reload_connections(serial_device)
             do_status(serial_device, state)
         elif message['type'] == 'txtest':
             do_txtest(serial_device, message['dest'], message['count'])
+        elif message['type'] == 'txidreq':
+            send_req_id(serial_device, message['dest'])
+        elif message['type'] == 'txidresp':
+            id_info = get_id_info(panel_config)
+            send_id(serial_device, message['dest'], id_info)
         elif message['type'] == 'quit':
             state = 'quit'
+        elif message['type'] == 'ctrl_packet':
+            handle_ctrl_packet(serial_device, panel_config, message['packet'])
         else:
-            print(f"Unsupported message {message['type']}")
+            print(f"Unknown message {message['type']}")
 
     # Kill our threads
     cli_handler_thread.join()
@@ -404,7 +503,7 @@ def device_main(panel_config, serial_device):
 
     if lcn_cfg:
         panel_config['local comms'] = lcn_cfg
-    save_config('session.toml', panel_config)
+        save_config('session.toml', panel_config)
 
 def init_serial(panel_config):
     port = panel_config['serial']['port']
@@ -468,7 +567,6 @@ def main():
         sys.exit(1)
 
     connman.init_setup(serial_device)
-    connman.clear_connections(serial_device)
 
     if panel_config['panel_type'] == 'coordinator':
         logging.info("Designated as the Coordinator panel")
