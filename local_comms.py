@@ -227,8 +227,12 @@ def setup_network(serial_device, net_cfg):
     logging.info(f"setup_network({net_cfg})")
 
     g3_lib.set_nvm_panid(serial_device, net_cfg['pan'])
-    if net_cfg['sa'] >= 0:
-        g3_lib.set_nvm_shortaddr(serial_device, net_cfg['sa'])
+    try:
+        short_addr = net_cfg['sa']
+    except KeyError:
+        short_addr = -1
+    if short_addr >= 0:
+        g3_lib.set_nvm_shortaddr(serial_device, short_addr)
     g3_lib.set_nvm_psk(serial_device, 0, net_cfg['session_key'])
 
 def start_network(serial_device, net_cfg):
@@ -244,6 +248,7 @@ def start_network(serial_device, net_cfg):
     _G_wait_net_start.clear()
     if not _G_wait_net_start.wait(START_TIMEOUT):
         logging.error("Never received network start, timeout.")
+        return False
     if not g3_lib.check_status_ok(_G_returned_srv_start):
         logging.error("Network start unsuccessful.")
         return False
@@ -373,11 +378,10 @@ def handle_ctrl_packet(serial_device, panel_config, packet):
     elif packet['type'] == msg_types.MSG_TYPE_LC_LCN_INFORMATION:
         event = 'lcn info'
         data = local_comms_msgs.decode_lc_network_information_data(packet['data'])
-        send_lcn_confirm(serial_device, packet['param'], packet['sender_id']) # TODO: move to device_main state machine
     elif packet['type'] == msg_types.MSG_TYPE_LC_LCN_INFO_CONFIRM:
         event = 'lcn confirm'
     elif packet['type'] == msg_types.MSG_TYPE_LC_SWITCH_NETWORK:
-        print("!!!!!!!  Commanded to switch to LCN")
+        event = 'lcn switch'
     return (event, data)
 
 def coordinator_main(panel_config, serial_device): # pylint: disable=too-many-statements, too-many-branches
@@ -530,16 +534,13 @@ def device_main(panel_config, serial_device):
         # start an LCN network
         net_cfg = lcn_cfg
         runinfo['net_mode'] = 'lcn'
-        state = 'lcn'
     else:
         net_cfg = create_pair_network_cfg(panel_config['pcm']['uuid'])
         net_cfg['devicetype'] = 'coordinator' # create_pair_network_cfg doesn't set this
         runinfo['net_mode'] = 'pairing'
-        state = 'pairing'
 
+    state = 'net start'
     runinfo['net_cfg'] = net_cfg
-
-    start_network(serial_device, net_cfg)
 
     # Start Rx handler thread
     rx_handler = local_comms_rx_handler.LocalComms_Rx_Handler(serial_device, mailbox)
@@ -552,7 +553,29 @@ def device_main(panel_config, serial_device):
     cli_handler_thread = threading.Thread(target=local_comms_cli.cli_main, args=[mailbox])
     cli_handler_thread.start()
 
+    message = {}
+    packet_data = {}
     while state != 'quit':
+        if state == 'net start':
+            logging.info(f"Starting {runinfo['net_mode']}")
+            stop_network(serial_device)
+            netstart_ok = start_network(serial_device, net_cfg)
+            if netstart_ok:
+                state = runinfo['net_mode']
+                logging.info(f"Network {runinfo['net_mode']} started sucessfully")
+            else:
+                logging.error("Unable to start the Network {runinfo['net_mode']}, will retry.")
+        elif state == 'lcn info':
+            lcn_cfg = packet_data
+            lcn_cfg['sa'] = -1 # when starting as a device, we always get assigned our short address
+            lcn_cfg['devicetype'] = 'device' # our network info doesn't include this, but we need it
+            logging.info(f"Recieved new LCN information {lcn_cfg}")
+            send_lcn_confirm(serial_device, lcn_cfg['pan'], message['packet']['sender_id'])
+            state = 'lcn confirmed'
+        else:
+            pass # no-opp to let us ignore certain passing states
+
+
         # Next get our messages
         if not local_comms_cli.cli_is_running():
             state = 'quit'
@@ -576,7 +599,21 @@ def device_main(panel_config, serial_device):
         elif message['type'] == 'quit':
             state = 'quit'
         elif message['type'] == 'ctrl_packet':
-            handle_ctrl_packet(serial_device, panel_config, message['packet'])
+            event, packet_data = handle_ctrl_packet(serial_device, panel_config, message['packet'])
+            if event == 'lcn info':
+                # We don't check on state here, because in both of our normal running states, we
+                # might get a new LCN info. In pairing mode, its for our switch to the LCN, and if
+                # we're already on an LCN, this is being sent to us for key rotation.
+                state = event
+            elif event == 'lcn switch' and state == 'lcn confirmed':
+                # We can only switch if we're in a confirmed LCN state. Also validate this switch
+                # command, the param field must match the lcn info we just got.
+                if lcn_cfg['pan'] == message['packet']['param']:
+                    net_cfg = lcn_cfg
+                    runinfo['net_mode'] = 'lcn'
+                    state = 'net start'
+                else:
+                    logging.warning(f"Got network switch command with non-matching PAN. {lcn_cfg['pan']} != {message['packet']['param']}")
         else:
             print(f"Unknown message {message['type']}")
 
