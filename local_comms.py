@@ -217,6 +217,12 @@ def get_id_info(panel_config):
     id_info['key'] = panel_config['pcm']['certificate']
     return id_info
 
+def validate_id(id_info, uuid):
+    logging.info(f"validate_id({id_info}, {uuid})")
+    if uuid.encode('utf-8') == id_info['uuid']:
+        return True
+    return False
+
 def setup_network(serial_device, net_cfg):
     logging.info(f"setup_network({net_cfg})")
 
@@ -314,14 +320,67 @@ def send_id(serial_device, dest, id_info):
     # Cleanup connection
     connman.del_connection(serial_device, connid)
 
+def send_lcn_cfg(serial_device, lcn_cfg, dest=LC_PAIR_SA):
+    logging.info(f"Sending LCN cfg {lcn_cfg}, to {dest}")
+    connid = connman.new_conn(serial_device, dest, LC_CONTROL_PORT, LC_CONTROL_PORT)
+    id_packet = local_comms_msgs.encode_lc_network_information_packet(connman.my_short_address, dest, lcn_cfg)
+    # Send the packet
+    packet_num = get_next_ctrl_packet_number()
+    (send_ok, status) = g3_lib.send_udp(serial_device, connid, packet_num, id_packet)
+    if not send_ok:
+        logging.error(f"Error sending LCN: {status}")
+
+    # Cleanup connection
+    connman.del_connection(serial_device, connid)
+
+def send_lcn_confirm(serial_device, panid, dest):
+    logging.info(f"Sending LCN confirmation to {dest}")
+    connid = connman.new_conn(serial_device, dest, LC_CONTROL_PORT, LC_CONTROL_PORT)
+    id_packet = local_comms_msgs.encode_lc_lcn_comfirm_packet(connman.my_short_address, dest, panid)
+    # Send the packet
+    packet_num = get_next_ctrl_packet_number()
+    (send_ok, status) = g3_lib.send_udp(serial_device, connid, packet_num, id_packet)
+    if not send_ok:
+        logging.error(f"Error sending LCN: {status}")
+
+    # Cleanup connection
+    connman.del_connection(serial_device, connid)
+
+def send_network_switch(serial_device, panid, dest):
+    logging.info(f"Sending network switch PANID {panid} to {dest}")
+    connid = connman.new_conn(serial_device, dest, LC_CONTROL_PORT, LC_CONTROL_PORT)
+    id_packet = local_comms_msgs.encode_lc_switch_network_packet(connman.my_short_address, dest, panid)
+    # Send the packet
+    packet_num = get_next_ctrl_packet_number()
+    (send_ok, status) = g3_lib.send_udp(serial_device, connid, packet_num, id_packet)
+    if not send_ok:
+        logging.error(f"Error sending network switch: {status}")
+
+    # Cleanup connection
+    connman.del_connection(serial_device, connid)
+
 def handle_ctrl_packet(serial_device, panel_config, packet):
     logging.info(f"Handle packet {packet}")
+    event = None
+    data = {}
     if packet['type'] == msg_types.MSG_TYPE_LC_REQUEST_ID:
         # we always just send back our ID info
         id_info = get_id_info(panel_config)
         send_id(serial_device, packet['sender_id'], id_info)
+    elif packet['type'] == msg_types.MSG_TYPE_LC_RESPOND_ID:
+        event = 'id response'
+        data = local_comms_msgs.decode_lc_response_id_data(packet['data'])
+    elif packet['type'] == msg_types.MSG_TYPE_LC_LCN_INFORMATION:
+        event = 'lcn info'
+        data = local_comms_msgs.decode_lc_network_information_data(packet['data'])
+        send_lcn_confirm(serial_device, packet['param'], packet['sender_id']) # TODO: move to device_main state machine
+    elif packet['type'] == msg_types.MSG_TYPE_LC_LCN_INFO_CONFIRM:
+        event = 'lcn confirm'
+    elif packet['type'] == msg_types.MSG_TYPE_LC_SWITCH_NETWORK:
+        print("!!!!!!!  Commanded to switch to LCN")
+    return (event, data)
 
-def coordinator_main(panel_config, serial_device):
+def coordinator_main(panel_config, serial_device): # pylint: disable=too-many-statements, too-many-branches
     logging.info("### Started Coordinator")
 
     state = 'lcn start'
@@ -355,6 +414,7 @@ def coordinator_main(panel_config, serial_device):
     cli_handler_thread.start()
 
     message = {}
+    packet_data = {}
     while state != 'quit':
         # First handle our state machine. Only certain states cause actions. Every action state
         # should end in a state where we wait for our next action, and these are no-ops in our
@@ -374,6 +434,7 @@ def coordinator_main(panel_config, serial_device):
             net_cfg = create_pair_network_cfg(message['uuid'])
             net_cfg['devicetype'] = 'device' # create_pair_network_cfg doesn't set this
             runinfo['net_mode'] = 'pairing'
+            runinfo['pairing uuid'] = message['uuid']
             runinfo['net_cfg'] = net_cfg
             netstart_ok = start_network(serial_device, net_cfg)
             if netstart_ok:
@@ -386,6 +447,22 @@ def coordinator_main(panel_config, serial_device):
         elif state == 'do id request':
             send_req_id(serial_device)
             state = 'id requested'
+        elif state == 'id response':
+            valid_id = validate_id(packet_data, runinfo['pairing uuid'])
+            if valid_id:
+                logging.info(f"Recieved valid ID information from {runinfo['pairing uuid']}")
+                logging.info("Sending LCN information")
+                send_lcn_cfg(serial_device, lcn_cfg, packet_data['addr'])
+                state = 'pair lcn info sent'
+            else:
+                logging.warning(f"Recieved ID information for a different node {packet_data['uuid']}")
+                state = 'id requested'
+        elif state == 'lcn confirm':
+            send_network_switch(serial_device, lcn_cfg['pan'], packet_data['addr'])
+            state = 'lcn start'
+            net_cfg = lcn_cfg
+            runinfo['net_cfg'] = net_cfg
+            continue
         else:
             pass # no-opp to let us ignore certain passing states
 
@@ -414,7 +491,14 @@ def coordinator_main(panel_config, serial_device):
         elif message['type'] == 'pair':
             state = 'pairing start'
         elif message['type'] == 'ctrl_packet':
-            handle_ctrl_packet(serial_device, panel_config, message['packet'])
+            event, packet_data = handle_ctrl_packet(serial_device, panel_config, message['packet'])
+            if event == 'id response' and state == 'id requested':
+                state = event
+                packet_data['addr'] = message['packet']['sender_id']
+            elif event == 'lcn confirm' and state == 'pair lcn info sent':
+                state = event
+                packet_data['pan'] = message['packet']['param']
+                packet_data['addr'] = message['packet']['sender_id']
         else:
             print(f"Unknown message {message['type']}")
 
