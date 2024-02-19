@@ -33,8 +33,11 @@ MSG_TYPE_INVALID = 0xFF
 ##  Message Subtypes
 ####################################################################################################
 
+# generic
+MSG_SUBTYPE_NONE = 0x00
+
 # iperf subtype constants
-MSG_DIR_NONE = 0x00
+MSG_DIR_NONE = MSG_SUBTYPE_NONE
 MSG_DIR_OUT = 0x01
 MSG_DIR_RESP = 0x02
 
@@ -72,12 +75,12 @@ MSG_MAX_PACKETS = 10000
 # By always using init_packet_fields() we avoid checking `except KeyValue` logic. So to simplify
 # our other functions, let's always use this to init the fields. Also important as we won't always
 # use all the fields, so we have to have them, but they might need to be set at defaults.
-def init_packet_fields(sender_address):
+def init_packet_fields(sender_address, dest_addr = MAX_DEST):
     fields = {}
     fields['type'] = MSG_TYPE_NONE
-    fields['subtype'] = MSG_DIR_NONE
+    fields['subtype'] = MSG_SUBTYPE_NONE
     fields['sender_id'] = sender_address
-    fields['dest_id'] = MAX_DEST
+    fields['dest_id'] = dest_addr
     fields['packet_num'] = 0
     fields['max_num'] = MSG_MAX_PACKETS
     fields['param'] = MSG_PARAM_NONE
