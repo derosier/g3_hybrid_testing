@@ -25,9 +25,10 @@ class LocalComms_Rx_Handler():
                       msg_types.MSG_TYPE_LC_SWITCH_NETWORK,
                       msg_types.MSG_TYPE_LC_PAIR_CLEAR]
 
-    def __init__(self, serdev, mailbox):
+    def __init__(self, serdev, mailbox, netif):
         self.device = serdev
         self.mailbox = mailbox
+        self.netif = netif
 
     def _rx_packet(self, data):
         print(f"Rx packet {data}")
@@ -40,6 +41,13 @@ class LocalComms_Rx_Handler():
                 self.mailbox.put(message)
         elif data['dest_port'] == LC_DATA_PORT:
             print("Rx DATA packet")
+            if self.netif:
+                # Packets that get here are decoded UDP packets, and data['data'] is the actual
+                # payload itself. All we're doing for packets on the data port is wrapping them
+                # into our G3 packet, so the payload is what came on the netif on the other side.
+                # If it got here, we're cool, send it up to the netif and the computer can decide
+                # what to do with it.
+                self.netif.send_to_iface(data['data'])
 
     def run(self):
         while not LocalComms_Rx_Handler._quit:

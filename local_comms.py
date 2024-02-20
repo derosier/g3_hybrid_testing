@@ -26,9 +26,11 @@ from g3_comms import g3_lib
 import local_comms_rx_handler
 import local_comms_cli
 
-from local_comms_consts import * # pylint: disable=wildcard-import
+from local_comms_consts import * # pylint: disable=wildcard-import, unused-wildcard-import
 import local_comms_msgs
 import msg_types
+
+import local_comms_netif
 
 runinfo = {
     'lcn_cfg': {},
@@ -122,7 +124,7 @@ _G_packet_num = 0
 def get_next_ctrl_packet_number():
     global _G_packet_num
     _G_packet_num = _G_packet_num + 1
-    if _G_packet_num > g3_comms.g3_consts.G3_MAX_PACKET_NUM:
+    if _G_packet_num > LC_CTRL_MAX_PACKET_NUM:
         _G_packet_num = 1
     return _G_packet_num
 
@@ -406,12 +408,17 @@ def coordinator_main(panel_config, serial_device): # pylint: disable=too-many-st
     net_cfg = lcn_cfg
     runinfo['net_cfg'] = net_cfg
 
+    # Start netif thread
+    netif = None
+    if panel_config['netif']['enabled']:
+        netif = local_comms_netif.LocalComms_Netif(serial_device, connman, LC_COORD_SA)
+        netif_thread = threading.Thread(target=netif.run)
+        netif_thread.start()
+
     # Start Rx handler thread
-    rx_handler = local_comms_rx_handler.LocalComms_Rx_Handler(serial_device, mailbox)
+    rx_handler = local_comms_rx_handler.LocalComms_Rx_Handler(serial_device, mailbox, netif)
     rx_handler_thread = threading.Thread(target=rx_handler.run)
     rx_handler_thread.start()
-
-    # Start Tx thread
 
     # Start cli thread
     cli_handler_thread = threading.Thread(target=local_comms_cli.cli_main, args=[mailbox])
@@ -425,15 +432,21 @@ def coordinator_main(panel_config, serial_device): # pylint: disable=too-many-st
         # state machine.
         if state == 'lcn start':
             logging.info('Starting LCN network')
+            if netif:
+                netif.disable()
             stop_network(serial_device)
             netstart_ok = start_network(serial_device, net_cfg)
             if netstart_ok:
                 state = 'lcn'
                 logging.info("LCN started sucessfully")
+                if netif:
+                    netif.enable()
             else:
                 logging.error("Unable to start the LCN, will retry.")
         elif state == 'pairing start':
             logging.info('Joining pairing network')
+            if netif:
+                netif.disable()
             stop_network(serial_device)
             net_cfg = create_pair_network_cfg(message['uuid'])
             net_cfg['devicetype'] = 'device' # create_pair_network_cfg doesn't set this
@@ -510,12 +523,15 @@ def coordinator_main(panel_config, serial_device): # pylint: disable=too-many-st
     cli_handler_thread.join()
     local_comms_rx_handler.LocalComms_Rx_Handler.quit()
     rx_handler_thread.join()
+    if netif:
+        local_comms_netif.LocalComms_Netif.quit()
+        netif_thread.join()
 
     panel_config['local comms'] = lcn_cfg
     save_config('c_session.toml', panel_config)
 
 
-def device_main(panel_config, serial_device):
+def device_main(panel_config, serial_device): # pylint: disable=too-many-statements, too-many-branches
     logging.info("### Started Device")
 
     state = 'starting'
@@ -542,12 +558,17 @@ def device_main(panel_config, serial_device):
     state = 'net start'
     runinfo['net_cfg'] = net_cfg
 
+    # Start netif thread
+    netif = None
+    if panel_config['netif']['enabled']:
+        netif = local_comms_netif.LocalComms_Netif(serial_device, connman, LC_PAIR_SA)
+        netif_thread = threading.Thread(target=netif.run)
+        netif_thread.start()
+
     # Start Rx handler thread
-    rx_handler = local_comms_rx_handler.LocalComms_Rx_Handler(serial_device, mailbox)
+    rx_handler = local_comms_rx_handler.LocalComms_Rx_Handler(serial_device, mailbox, netif)
     rx_handler_thread = threading.Thread(target=rx_handler.run)
     rx_handler_thread.start()
-
-    # Start Tx thread
 
     # Start cli thread
     cli_handler_thread = threading.Thread(target=local_comms_cli.cli_main, args=[mailbox])
@@ -558,11 +579,17 @@ def device_main(panel_config, serial_device):
     while state != 'quit':
         if state == 'net start':
             logging.info(f"Starting {runinfo['net_mode']}")
+            if netif:
+                netif.disable()
             stop_network(serial_device)
             netstart_ok = start_network(serial_device, net_cfg)
             if netstart_ok:
                 state = runinfo['net_mode']
                 logging.info(f"Network {runinfo['net_mode']} started sucessfully")
+                if runinfo['net_mode'] == 'lcn':
+                    if netif:
+                        netif.change_shortaddr(connman.my_short_address)
+                        netif.enable()
             else:
                 logging.error("Unable to start the Network {runinfo['net_mode']}, will retry.")
         elif state == 'lcn info':
@@ -621,6 +648,9 @@ def device_main(panel_config, serial_device):
     cli_handler_thread.join()
     local_comms_rx_handler.LocalComms_Rx_Handler.quit()
     rx_handler_thread.join()
+    if netif:
+        local_comms_netif.LocalComms_Netif.quit()
+        netif_thread.join()
 
     if lcn_cfg:
         panel_config['local comms'] = lcn_cfg

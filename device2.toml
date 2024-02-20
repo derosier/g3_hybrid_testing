@@ -7,3 +7,6 @@
 uuid = "G3MOD-PCM-000A-01:JJ-9999-F4CHE"
 certificate = "8e6742c985aafe101e71d9646502239e6c40444f73471f766cdb3e6aa94324bdc9b45abbbcb8f7f0f2c0248d5c74987821b69f74ee7760c3ff3c82814f82c282"
 
+[netif]
+enabled = true
+

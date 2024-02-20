@@ -9,3 +9,6 @@ certificate = "4f3cf0ac8bd1f3373a336ee29c534a94c38f411984e8b4ce921e5f64ae08641a9
 pcm_pass_through = false
 port = "/dev/ttyG3Srv"
 baudrate = 115200
+
+[netif]
+enabled = true

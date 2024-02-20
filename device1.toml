@@ -9,3 +9,6 @@ certificate = "623f0b59649e0bc27dfdae77e1f1cf262e40e3490872a4fdfe4c8c1ed371b41ca
 pcm_pass_through = false
 port = "/dev/ttyG3BTable"
 baudrate = 115200
+
+[netif]
+enabled = true
