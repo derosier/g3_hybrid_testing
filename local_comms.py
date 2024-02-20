@@ -272,6 +272,20 @@ def stop_network(serial_device):
     local_comms_rx_handler.LocalComms_Rx_Handler.HandleRX = False
     connman.clear_connections(serial_device)
 
+def set_media(serial_device, media):
+    media_ok = True  # default to OK, because we might not want to set the media
+    if media == 'rf':
+        (media_ok, _) = g3_lib.set_media(serial_device, g3_comms.g3_consts.G3_MEDIA_RF)
+    elif media == 'plc':
+        (media_ok, _) = g3_lib.set_media(serial_device, g3_comms.g3_consts.G3_MEDIA_PLC)
+    elif media == 'all':
+        (media_ok, _) = g3_lib.set_media(serial_device, g3_comms.g3_consts.G3_MEDIA_ALL)
+
+    if not media_ok:
+        print(f"Error setting media to {media}.")
+    else:
+        print(f"Set media to {media}.")
+
 def do_status(serial_device, state):
     print(f"Current running state: {state}")
     panid = g3_lib.get_panid(serial_device)
@@ -507,6 +521,8 @@ def coordinator_main(panel_config, serial_device): # pylint: disable=too-many-st
             state = 'quit'
         elif message['type'] == 'pair':
             state = 'pairing start'
+        elif message['type'] == 'media':
+            set_media(serial_device, message['media'])
         elif message['type'] == 'ctrl_packet':
             event, packet_data = handle_ctrl_packet(serial_device, panel_config, message['packet'])
             if event == 'id response' and state == 'id requested':
@@ -625,6 +641,8 @@ def device_main(panel_config, serial_device): # pylint: disable=too-many-stateme
             send_id(serial_device, message['dest'], id_info)
         elif message['type'] == 'quit':
             state = 'quit'
+        elif message['type'] == 'media':
+            set_media(serial_device, message['media'])
         elif message['type'] == 'ctrl_packet':
             event, packet_data = handle_ctrl_packet(serial_device, panel_config, message['packet'])
             if event == 'lcn info':
