@@ -39,14 +39,14 @@ as well as to link the command to any relevant responses.
 
 #### `g3_id`
 
-This field needs to be set to the value for the relevant command from the datasheet. It should be a
+This field needs to be set to the value for the relevant command from the datasheet (AN5603). It should be a
 two digit hex integer.
 
 #### `g3_name`
 
-The name should be set to the name from the datasheet, without the suffix part (".Request"). Note
+The name should be set to the name from the datasheet (AN5603), without the suffix part (".Request"). Note
 that the name on the Cmd and the Resp are used to match, so it's best to use the same value from
-the datasheet (and watch the spelling).
+the datasheet (AN5603) (and watch the spelling).
 
 #### `rx_msgs`
 

@@ -39,7 +39,7 @@ as well as to link the command to any relevant responses.
 
 #### `g3_id`
 
-This field needs to be set to the value for the relevant response from the datasheet. It should be a
+This field needs to be set to the value for the relevant response from the datasheet (AN5603). It should be a
 two digit hex integer. Note that the value for the command and the response are not the same number,
 the response is usually +1.
 
@@ -47,9 +47,9 @@ The id is used to automatically run the relevant parser when the message is rece
 
 #### `g3_name`
 
-The name should be set to the name from the datasheet, without the suffix part (".Confirm"). Note
+The name should be set to the name from the datasheet (AN5603), without the suffix part (".Confirm"). Note
 that the name on the Cmd and the Resp are used to match, so it's best to use the same value from
-the datasheet (and watch the spelling).
+the datasheet (AN5603) (and watch the spelling).
 
 ### 3. and 4. Implement overrides
 

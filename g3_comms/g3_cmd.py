@@ -71,7 +71,7 @@ class G3Cmd():
 
 # Below commands are defined in the Datasheet AN5603 from ST.
 
-# Datasheet pg 49
+# Datasheet (AN5603) pg 49
 class HWResetCmd(G3Cmd):
     g3_id = 0x00
     g3_name = 'HOSTIF-HWRESET'
@@ -84,7 +84,7 @@ class HWResetCmd(G3Cmd):
         logging.debug("HOSTIF-HWRESET.Requst has no data to encode")
         return b''
 
-# Datasheet pg 50
+# Datasheet (AN5603) pg 50
 class UARTBaudSetCmd(G3Cmd):
     g3_id = 0x06
     g3_name = 'HOSTIF-BAUDRATESET'
@@ -104,7 +104,7 @@ class UARTBaudSetCmd(G3Cmd):
         raw = struct.pack("<I", self.fields['speed'])
         return raw
 
-# Datasheet pg 54
+# Datasheet (AN5603) pg 54
 class SFlashCmd(G3Cmd):
     g3_id = 0x0E
     g3_name = 'HOSTIF-SFLASH'
@@ -143,7 +143,7 @@ class SFlashCmd(G3Cmd):
                                             self.fields['address'], self.fields['data'])
         return raw
 
-# Datasheet pg 54
+# Datasheet (AN5603) pg 54
 class NVMCmd(G3Cmd):
     g3_id = 0x10
     g3_name = 'HOSTIF-NVM'
@@ -213,7 +213,7 @@ class NVMCmd(G3Cmd):
             return self._encode_write()
         return None
 
-# Datasheet pg 55
+# Datasheet (AN5603) pg 55
 class DBGToolCmd(G3Cmd):
     g3_id = 0x14
     g3_name = 'HOSTIF-DBGTOOL'
@@ -235,7 +235,7 @@ class DBGToolCmd(G3Cmd):
             logging.debug(f"Unsupported DBGTOOL subcommand {self.fields['subcmd']}")
         return raw
 
-# Datasheet pg 57
+# Datasheet (AN5603) pg 57
 class G3RfConfigSetCmd(G3Cmd):
     g3_id = 0x18
     g3_name = 'HOSTIF-RFCONFIGSET'
@@ -322,7 +322,7 @@ class G3RfConfigSetCmd(G3Cmd):
         )
         return raw
 
-# Datasheet pg 58
+# Datasheet (AN5603) pg 58
 class G3RfConfigGetCmd(G3Cmd):
     g3_id = 0x1A
     g3_name = 'HOSTIF-RFCONFIGGET'
@@ -336,7 +336,7 @@ class G3RfConfigGetCmd(G3Cmd):
         logging.debug("HOSTIF-RFCONFIGGET.Requst has no data to encode")
         return b''
 
-# Datasheet pg 62
+# Datasheet (AN5603) pg 62
 class G3GetCmd(G3Cmd):
     g3_id = 0x20
     g3_name = 'G3LIB-GET'
@@ -356,7 +356,7 @@ class G3GetCmd(G3Cmd):
         raw = struct.pack("<IH", self.fields['id'], self.fields['index'])
         return raw
 
-# Datasheet pg 62
+# Datasheet (AN5603) pg 62
 class G3SetCmd(G3Cmd):
     g3_id = 0x22
     g3_name = 'G3LIB-SET'
@@ -380,7 +380,7 @@ class G3SetCmd(G3Cmd):
         raw = struct.pack(f"<IHH{length}s", self.fields['id'], self.fields['index'], length, self.fields['data'])
         return raw
 
-# Datasheet pg 63
+# Datasheet (AN5603) pg 63
 class SWResetCmd(G3Cmd):
     g3_id = 0x24
     g3_name = 'G3LIB-SWRESET'
@@ -422,7 +422,7 @@ class SWResetCmd(G3Cmd):
         raw = struct.pack("<BBB", self.fields['bandplan'], self.fields['devicetype'], self.fields['mode'])
         return raw
 
-# Datasheet pg 71
+# Datasheet (AN5603) pg 71
 class PhyDataCmd(G3Cmd):
     g3_id = 0x40
     g3_name = 'G3PHY-DATA'
@@ -469,7 +469,7 @@ class PhyDataCmd(G3Cmd):
                                                     self.fields['data'])
         return raw
 
-# Datasheet pg 73
+# Datasheet (AN5603) pg 73
 class PhyAckCmd(G3Cmd):
     g3_id = 0x43
     g3_name = 'G3PHY-ACK'
@@ -505,7 +505,7 @@ class PhyAckCmd(G3Cmd):
         raw = struct.pack("<HBB", self.fields['fcs'], self.fields['dt_ssca'], self.fields['crc5_8'])
         return raw
 
-# Datasheet pg 74
+# Datasheet (AN5603) pg 74
 class PhyRfCmd(G3Cmd):
     g3_id = 0x46
     g3_name = 'G3PHY-RF'
@@ -525,7 +525,7 @@ class PhyRfCmd(G3Cmd):
         raw = struct.pack(f"<H{length}s", length, self.fields['data'])
         return raw
 
-# Datasheet pg 87
+# Datasheet (AN5603) pg 87
 class BootSrvStartCmd(G3Cmd):
     g3_id = 0xB0
     g3_name = 'G3BOOT-SRV-START'
@@ -554,7 +554,7 @@ class BootSrvStartCmd(G3Cmd):
         raw = struct.pack("<HHB", self.fields['addr'], self.fields['panid'], self.fields['reqtype'])
         return raw
 
-# Datasheet pg 90
+# Datasheet (AN5603) pg 90
 class BootDevStartCmd(G3Cmd):
     g3_id = 0xB8
     g3_name = 'G3BOOT-DEV-START'
@@ -578,7 +578,7 @@ class BootDevStartCmd(G3Cmd):
         raw = struct.pack("<B", self.fields['reqtype'])
         return raw
 
-# Datasheet pg 89
+# Datasheet (AN5603) pg 89
 class BootSrvSetPSKCmd(G3Cmd):
     g3_id = 0xC5
     g3_name = 'G3BOOT-SRV-SETPSK'
@@ -603,7 +603,7 @@ class BootSrvSetPSKCmd(G3Cmd):
         raw = struct.pack("<Q16sH", self.fields['extd_addr'], self.fields['psk'], self.fields['addr'])
         return raw
 
-# Datasheet pg 90
+# Datasheet (AN5603) pg 90
 class UDPData(G3Cmd):
     g3_id = 0xd0
     g3_name = 'G3UDP-DATA'
@@ -647,7 +647,7 @@ class UDPData(G3Cmd):
                                                length, self.fields['data'])
         return raw
 
-# Datasheet pg 92
+# Datasheet (AN5603) pg 92
 class UDPConnSetCmd(G3Cmd):
     g3_id = 0xd3
     g3_name = 'G3UDP-CONN-SET'
@@ -703,7 +703,7 @@ class UDPConnSetCmd(G3Cmd):
                                      self.fields['remote_port'], self.fields['local_port'])
         return raw
 
-# Datasheet pg 92
+# Datasheet (AN5603) pg 92
 class UDPConnGetCmd(G3Cmd):
     g3_id = 0xd5
     g3_name = 'G3UDP-CONN-GET'
@@ -728,7 +728,7 @@ class UDPConnGetCmd(G3Cmd):
             raw = b''
         return raw
 
-# Datasheet pg 93
+# Datasheet (AN5603) pg 93
 class ICMPEchoCmd(G3Cmd):
     g3_id = 0xd7
     g3_name = 'G3ICMP-ECHO'

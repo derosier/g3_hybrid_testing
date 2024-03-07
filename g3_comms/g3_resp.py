@@ -44,7 +44,7 @@ class G3Resp():
 
 # Below responses are defined in the Datasheet AN5603 from ST.
 
-# Datasheet pg 49
+# Datasheet (AN5603) pg 49
 class HWResetResp(G3Resp):
     g3_id = 0x01
     g3_name = 'HOSTIF-HWRESET'
@@ -59,7 +59,7 @@ class HWResetResp(G3Resp):
         else:
             self.fields['security_code'] = 'none'
 
-# Datasheet pg 50
+# Datasheet (AN5603) pg 50
 class UARTBaudSetResp(G3Resp):
     g3_id = 0x07
     g3_name = 'HOSTIF-BAUDRATESET'
@@ -76,7 +76,7 @@ class UARTBaudSetResp(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 54
+# Datasheet (AN5603) pg 54
 class SFlashResp(G3Resp):
     g3_id = 0x0f
     g3_name = 'HOSTIF-SFLASH'
@@ -87,7 +87,7 @@ class SFlashResp(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 54
+# Datasheet (AN5603) pg 54
 class NVMResp(G3Resp):
     g3_id = 0x11
     g3_name = 'HOSTIF-NVM'
@@ -112,7 +112,7 @@ class NVMResp(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 56
+# Datasheet (AN5603) pg 56
 class DBGToolResp(G3Resp):
     g3_id = 0x15
     g3_name = 'HOSTIF-DBGTOOL'
@@ -145,7 +145,7 @@ class DBGToolResp(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 58
+# Datasheet (AN5603) pg 58
 class G3RfConfigSet(G3Resp):
     g3_id = 0x19
     g3_name = 'HOSTIF-RFCONFIGSET'
@@ -162,7 +162,7 @@ class G3RfConfigSet(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 58
+# Datasheet (AN5603) pg 58
 class G3RfConfigGet(G3Resp):
     g3_id = 0x1B
     g3_name = 'HOSTIF-RFCONFIGGET'
@@ -200,7 +200,7 @@ class G3RfConfigGet(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 62
+# Datasheet (AN5603) pg 62
 class G3GetResp(G3Resp):
     g3_id = 0x21
     g3_name = 'G3LIB-GET'
@@ -226,7 +226,7 @@ class G3GetResp(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 63
+# Datasheet (AN5603) pg 63
 class G3SetResp(G3Resp):
     g3_id = 0x23
     g3_name = 'G3LIB-SET'
@@ -244,7 +244,7 @@ class G3SetResp(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 56
+# Datasheet (AN5603) pg 56
 class SWResetResp(G3Resp):
     g3_id = 0x25
     g3_name = 'G3LIB-SWRESET'
@@ -425,7 +425,7 @@ G3LIB_SNIFFER_DECODER = {
     0xFF: decode_unknown
 }
 
-# Datasheet pg 62
+# Datasheet (AN5603) pg 62
 class G3SnifferInd(G3Resp):
     g3_id = 0x2b
     g3_name = 'G3LIB-SNIFFER'
@@ -445,7 +445,7 @@ class G3SnifferInd(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 72
+# Datasheet (AN5603) pg 72
 class G3PhyData(G3Resp):
     g3_id = 0x41
     g3_name = 'G3PHY-DATA'
@@ -466,7 +466,7 @@ class G3PhyData(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 72
+# Datasheet (AN5603) pg 72
 class G3PhyDataInd(G3Resp):
     g3_id = 0x42
     g3_name = 'G3PHY-DATA.Ind'
@@ -478,7 +478,7 @@ class G3PhyDataInd(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 73
+# Datasheet (AN5603) pg 73
 class G3PhyAck(G3Resp):
     g3_id = 0x44
     g3_name = 'G3PHY-ACK'
@@ -495,7 +495,7 @@ class G3PhyAck(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 73
+# Datasheet (AN5603) pg 73
 class G3PhyAckInd(G3Resp):
     g3_id = 0x45
     g3_name = 'G3PHY-ACK.Ind'
@@ -507,7 +507,7 @@ class G3PhyAckInd(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 74
+# Datasheet (AN5603) pg 74
 class G3PhyRf(G3Resp):
     g3_id = 0x47
     g3_name = 'G3PHY-RF'
@@ -524,7 +524,7 @@ class G3PhyRf(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 74
+# Datasheet (AN5603) pg 74
 class G3PhyRfInd(G3Resp):
     g3_id = 0x48
     g3_name = 'G3PHY-RF.Ind'
@@ -536,7 +536,7 @@ class G3PhyRfInd(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 87
+# Datasheet (AN5603) pg 87
 class BootSrvStartResp(G3Resp):
     g3_id = 0xB1
     g3_name = 'G3BOOT-SRV-START'
@@ -553,7 +553,7 @@ class BootSrvStartResp(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 88
+# Datasheet (AN5603) pg 88
 class BootSrvJoinInd(G3Resp):
     g3_id = 0xB7
     g3_name = 'G3BOOT-SRV-JOIN'
@@ -568,7 +568,7 @@ class BootSrvJoinInd(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 90
+# Datasheet (AN5603) pg 90
 class BootDevStartResp(G3Resp):
     g3_id = 0xB9
     g3_name = 'G3BOOT-DEV-START'
@@ -587,7 +587,7 @@ class BootDevStartResp(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 90
+# Datasheet (AN5603) pg 90
 class BootDevPANSortInd(G3Resp):
     g3_id = 0xC1
     g3_name = 'G3BOOT-DEV-PANSORT.I'
@@ -608,7 +608,7 @@ class BootDevPANSortInd(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 89
+# Datasheet (AN5603) pg 89
 class BootGetPSKInd(G3Resp):
     g3_id = 0xC4
     g3_name = 'G3BOOT-SRV-GETPSK'
@@ -626,7 +626,7 @@ class BootGetPSKInd(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 89
+# Datasheet (AN5603) pg 89
 class BootSrvSetPSKResp(G3Resp):
     g3_id = 0xC6
     g3_name = 'G3BOOT-SRV-SETPSK'
@@ -643,7 +643,7 @@ class BootSrvSetPSKResp(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 91
+# Datasheet (AN5603) pg 91
 class UDPData(G3Resp):
     g3_id = 0xd1
     g3_name = 'G3UDP-DATA'
@@ -662,7 +662,7 @@ class UDPData(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 92
+# Datasheet (AN5603) pg 92
 class UDPDataInd(G3Resp):
     g3_id = 0xd2
     g3_name = 'G3UDP-DATA.Ind'
@@ -730,7 +730,7 @@ class UDPDataInd(G3Resp):
     def dbg_pr_decode(self):
         print(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 92
+# Datasheet (AN5603) pg 92
 class UDPConnSet(G3Resp):
     g3_id = 0xd4
     g3_name = 'G3UDP-CONN-SET'
@@ -747,7 +747,7 @@ class UDPConnSet(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 92
+# Datasheet (AN5603) pg 92
 class UDPConnGet(G3Resp):
     g3_id = 0xd6
     g3_name = 'G3UDP-CONN-GET'
@@ -768,7 +768,7 @@ class UDPConnGet(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 93
+# Datasheet (AN5603) pg 93
 class G3EchoResp(G3Resp):
     g3_id = 0xd8
     g3_name = 'G3ICMP-ECHO'
@@ -786,7 +786,7 @@ class G3EchoResp(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
-# Datasheet pg 93
+# Datasheet (AN5603) pg 93
 def decode_echo(msg, offset):
     fmt = "<BH"
     raw_fields = struct.unpack_from(fmt, msg['data'], offset)
