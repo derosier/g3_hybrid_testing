@@ -136,8 +136,6 @@ def do_g3_cmd(device, dryrun):
                 device.baudrate = args.speed
     except KeyError:
         print(f"Unrecognized command {args.cmd}. Exiting.")
-    if not args.dump:
-        g3_comms.g3_rx.G3Rx.quit()
 
 def main():
     global args
@@ -230,8 +228,7 @@ def main():
 
         args.cmd = None # clear this out, because if we don't we'll repeat the last command on error or help
         if user_input.strip() in ('quit', 'end', 'exit'):
-            g3_comms.g3_rx.G3Rx.quit()
-            break
+            break  # exit while loop
         if user_input.strip() in ('?', 'help'): # -h and --help will work, but they're part of the parser
             parser.print_help()
             continue
@@ -244,6 +241,7 @@ def main():
             pass # we want to catch it, but we handle messages in the error function.
 
     # Cleanup and quit
+    g3_comms.g3_rx.G3Rx.quit()  # End the receive loop so the thread can exit
     rx_thread.join()
 
     if args.pcm:
