@@ -3,28 +3,30 @@
 setlocal enableExtensions disableDelayedExpansion
 
 ::Sets the default COM port
-set DEFAULT_COMM=COM0
+set DEFAULT_COMM=%1
 
 ::Sets the default images and gets arguments
-set PE_image_dl="imgs\ST8500_G3_v1710d407_6.2.15.img"
+set PE_image_dl="imgs\ST8500_G3_v17a1a45a_6.3.4.img"
 set RTE_image_dl="imgs\STARCOM_G3_RT_FW_r1_15_rc2_BA_key0.img"
 
 echo PE Image  : %PE_image_dl%
 echo RTE image : %RTE_image_dl%
 echo.
-echo ################################################################
-echo Before proceeding with FW upload, please ensure that STM32 MODE  
-echo switch position is "1" (DOWN) and PLC BOOT1 is "1" (DOWN)
-echo ################################################################
+echo #######################################################################################
+echo Before proceeding with FW upload on EVLKST8500GHxxx, 
+echo please ensure that STM32 MODE switch position is "1" (DOWN) and PLC BOOT1 is "1" (DOWN)
+echo Before proceeding with FW upload on EVLKST8500GH-2, 
+echo please ensure that SW201 switch position is CP2105 and PLC BOOT1 is "1" (DOWN)
+echo #######################################################################################
 echo.
-echo ###############################
-echo Press RESET on EVALKITST8500-1
-echo ###############################
+echo #################################
+echo Press RESET on the evaluation kit
+echo #################################
 echo.
 pause
 echo.
 
-.\image_loader_st8500.exe --port %DEFAULT_COMM% --baudrate 460800 --program_SPI_Flash --pe %PE_image_dl% --rte %RTE_image_dl%
+.\image_loader_st8500.exe --port %DEFAULT_COMM% --baudrate 115200 --program_SPI_Flash --pe %PE_image_dl% --rte %RTE_image_dl%
 
 echo.
 pause

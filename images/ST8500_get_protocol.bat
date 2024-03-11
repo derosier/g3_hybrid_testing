@@ -3,7 +3,7 @@
 setlocal enableExtensions disableDelayedExpansion
 
 ::Sets the default COM port
-set DEFAULT_COMM=COM0
+set DEFAULT_COMM=%1
 
 echo ################################################################
 echo Before proceeding with FW upload, please ensure that STM32 MODE  

@@ -6,7 +6,7 @@ setlocal enableExtensions disableDelayedExpansion
 set DEFAULT_COMM=%1
 
 ::Sets the default images and gets arguments
-set PE_image_dl="imgs\ST8500_G3_v1740e668_6.2.17.img"
+set PE_image_dl="imgs\ST8500_G3_v17a1a45a_6.3.4.img"
 set RTE_image_dl="imgs\STARCOM_G3_RT_FW_r1_15_rc2_BA_key0.img"
 
 echo PE Image  : %PE_image_dl%
