@@ -602,8 +602,12 @@ def init_board_server(device):
         return True
 
     # 2. HWRESET
-    if not hw_reset(device):
-        return False
+    if args.pcm:
+        logging.debug("PCM mode does not issue HOSTIF-HWRESET. Continuing board setup.")
+    else:
+        if not hw_reset(device):
+            logging.error("HWRESET failed.")
+            return False
 
     # 3. SWRESET to coordinator
     _G_wait_srv_start.clear()
@@ -853,10 +857,11 @@ def init_board_client(device):
         return True
 
     # 2. HWRESET
-    if not hw_reset(device):
-        if args.pcm:
-            logging.warning("PCM mode is ignoring HOSTIF-HWRESET response not found. Continuing board setup.")
-        else:
+    if args.pcm:
+        logging.debug("PCM mode does not issue HOSTIF-HWRESET. Continuing board setup.")
+    else:
+        if not hw_reset(device):
+            logging.error("HWRESET failed.")
             return False
 
     # 3. SWRESET to coordinator
