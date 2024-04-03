@@ -565,7 +565,11 @@ def do_server(device):
     # First we'll setup our connection.  We'll use port 5000 as our local port, and setup to accept
     # from all.
     listen_connid = connman.new_conn(device, -1, 0, SRV_UDP_PORT)
-    connman.print_conn_list()
+    if listen_connid is None:
+        _G_running = False
+        logging.error("Unable to setup listen connection, exiting.")
+    else:
+        connman.print_conn_list()
 
     # We'll loop until we quit.
     while _G_running:
@@ -580,7 +584,8 @@ def do_server(device):
         if args.oneshotserver:
             exit_clean()
 
-    connman.del_connection(device, listen_connid)
+    if listen_connid is not None:
+        connman.del_connection(device, listen_connid)
 
 ####################################################################################################
 ##  Client stuff
