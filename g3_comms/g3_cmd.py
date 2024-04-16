@@ -104,6 +104,166 @@ class UARTBaudSetCmd(G3Cmd):
         raw = struct.pack("<I", self.fields['speed'])
         return raw
 
+# AN5603 Rev 2.22 pg. 67
+class TestSetCmd(G3Cmd):
+    g3_id = 0x0A
+    g3_name = 'HOSTIF-TESTSET'
+    rx_msgs = ['HOSTIF-TESTSET']
+
+    def __init__(self, subparsers=None):
+
+        # The Test Set command payload includes a section which is the exact payload of the data send command
+        # pertaining to the platform mode we're operating in; so a PHY data rate test will send PHY-DATA commands
+        # over and over again.
+        # Rather than redefining those payloads, I'm just going to borrow them from the commands we've
+        # already declared. This is especially useful for PhyDataCmd which has a lot of fields and would be a tragic
+        # copy/paste. If/when we implement MAC or ADP-layer data rate tests we'll have to implement their corresponding
+        # single-send commands and can reuse that code here following this pattern.
+        self.phy_cmd = PhyDataCmd()
+        self.phyrf_cmd = PhyRfCmd()
+
+        # g3_cli passes us a subparsers object to attach subcommands to at initialization; super.__init__() calls
+        # _add_parser(), which uses the child Command objects to add sub-sub-commands (as sub-sub-parsers).
+        # So we don't pass the subparsers object to those child Command objects (that's the "top level" parser's subparsers,
+        # and we want to register them as children to the testset subparser's subparsers), and we need to wait to
+        # invoke super.__init__() until we have them instantiated already (so that we can reference them in _add_parser()).
+        super().__init__(subparsers=subparsers)
+
+    RXTXCONF_SETTINGS = {
+        'rx': 0,
+        'tx': 1,
+        'tx_randomdelay': 2,  # random delay between 0 and the value in DELAY field (not exactly sure why this is useful)
+    }
+
+    RF_SIGNALTYPE = {
+        'wave': 0,
+        'pn9': 1,
+    }
+
+    MODE_PHY_PLC = 0
+    MODE_PHY_RF = 6
+    MODE_UDP = 4
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('testset', help="Run one of the ST8500's built-in tests")
+        parser.add_argument('--rxtxconf', choices=list(self.RXTXCONF_SETTINGS.keys()), default='tx', help="Whether to broadcast or listen to another node's broadcast; default send")
+        parser.add_argument('--nbpackets', type=int, default=0xffffffff, help="Number of packets to send (defaults to 0xFFFFFFFF, aka 'just keep going')")
+        parser.add_argument('--delay', type=int, default=0, help="In tx mode, delay to add between packets; in tx_randomdelay, the maximum randomized delay to use")
+
+        # How the payload is defined depends on two fields: TESTTYPE and (when TESTTYPE=1) the additional field MODE.
+        # I'm representing these both in the CLI as a single-depth subcommand which sets both testtype and mode.
+
+        subparsers = parser.add_subparsers(dest='testtype_mode')  # using 'dest' to remember which subcommand was invoked
+
+        # TESTTYPE = 0: Stop running the test.
+        subparsers.add_parser('stop', help="Stop an ongoing test")
+
+        # TESTTYPE = 1: Data Rate, sends packets. Configurable by mode.
+
+        # Mode 0: PHY (which presumably means 'PLC' in this context)
+        self.phy_cmd._add_parser(subparsers)  # pylint: disable=protected-access
+
+        # Mode 1/2/3: MAC and ADP layer data rate tests.  **** NOT YET IMPLEMENTED ****
+
+        # Mode 4/5: UDP. Note that the UDP payload format is different from the regular UDP-DATA.Request format, ignoring
+        # port and connection ID, so we can't borrow our existing command declaration and need to do it again by hand
+        udp_data = subparsers.add_parser('udp', help='UDP-layer data rate test')
+        udp_data.add_argument('data', help="Data as string or hex with '0x' in little endian byte order")
+        udp_data.add_argument('--cmdid', type=int, default=0xD0, help="I have no idea what this means actually? AN5603 doesn't explain it at all. Defaults to the command ID 0xD0 for 'UDP-DATA.Request' because maybe that's what they mean?")
+
+        # Mode 6: PHY RF (note that this sends 802.15.4 frames over RF, so higher level than TESTTYPE=4 below)
+        self.phyrf_cmd._add_parser(subparsers)  # pylint: disable=protected-access
+
+        # TESTTYPE = 2: INFINITELOOP test type. What does it do? What it says on the tin, I guess!
+        subparsers.add_parser('infiniteloop', help="Run an infinite loop w/o payload")
+
+        # TESTTYPE = 3: SECURE_HI test type, which mumble mumble host UART security. **** NOT YET IMPLEMENTED ****
+
+        # TESTTYPE = 4: RF Interface, sends RF signals (not 802.15.4 frames, lower level)
+        rf_iface = subparsers.add_parser('rf_signal', help="Low-level RF signal generation")
+        rf_iface.add_argument('signaltype', choices=list(self.RF_SIGNALTYPE.keys()), help="Type of signal to generate")
+
+        return parser
+
+    def parse_args(self, args):
+        self.fields['rxtxconf'] = self.RXTXCONF_SETTINGS[args.rxtxconf]
+        self.fields['nbpackets'] = args.nbpackets
+        self.fields['delay'] = args.delay
+
+        # Test type is Table 32, AN5603 Rev 2.22 pg. 67; mode is from Tables 33-37 (and only valid for TESTTYPE=1)
+        if args.testtype_mode == 'stop':
+            self.fields['test_type'] = 0
+
+        elif args.testtype_mode == PhyDataCmd.SUBPARSER_NAME:
+            self.fields['test_type'] = 1
+            self.fields['mode'] = self.MODE_PHY_PLC
+            self.phy_cmd.parse_args(args)
+
+        elif args.testtype_mode == PhyRfCmd.SUBPARSER_NAME:
+            self.fields['test_type'] = 1
+            self.fields['mode'] = self.MODE_PHY_RF
+            self.phyrf_cmd.parse_args(args)
+
+        elif args.testtype_mode == 'udp':
+            self.fields['test_type'] = 1
+            self.fields['mode'] = self.MODE_UDP
+            self.fields['data'] = g3_comms.g3_msgs.parse_data(args.data)
+            self.fields['cmdid'] = args.cmdid
+
+        elif args.testtype_mode == 'infiniteloop':
+            self.fields['test_type'] = 2
+
+        elif args.testtype_mode == 'rf_signal':
+            self.fields['test_type'] = 4
+            self.fields['signaltype'] = self.RF_SIGNALTYPE[args.signaltype]
+
+    def encode_cmd(self):
+        raw = struct.pack("<B", self.fields['test_type'])
+
+        if self.fields['test_type'] == 1:
+            raw += struct.pack("<BBII",
+                              self.fields['mode'],
+                              self.fields['rxtxconf'],
+                              self.fields['nbpackets'],
+                              self.fields['delay'])
+
+            if self.fields['mode'] == self.MODE_PHY_PLC:
+                raw += self.phy_cmd.encode_cmd()
+
+            elif self.fields['mode'] == self.MODE_PHY_RF:
+                raw += self.phyrf_cmd.encode_cmd()
+
+            elif self.fields['mode'] == self.MODE_UDP:
+                destaddr = bytes.fromhex("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00")
+                length = len(self.fields['data'])
+                raw += struct.pack(f"<B16sH{length}s",
+                                  self.fields['cmdid'],
+                                  destaddr,
+                                  length,
+                                  self.fields['data'])
+
+        # TESTTYPE=2 seems to have no payload! It's just an infinite loop. You get what you ask for 💁‍♀️
+
+        elif self.fields['test_type'] == 4:
+            # nice simple payload, phew!
+            raw += struct.pack("<B", self.fields['signaltype'])
+
+        return raw
+
+# AN5603 Rev 2.22 pg. 69
+class TestGetCmd(G3Cmd):
+    g3_id = 0x0C
+    g3_name = 'HOSTIF-TESTGET'
+    rx_msgs = ['HOSTIF-TESTGET']
+
+    def _add_parser(self, subparsers):
+        parser = subparsers.add_parser('testget', help='Get status of ongoing built-in test')
+        return parser
+
+    def encode_cmd(self):
+        logging.debug("TESTGET.Request has no data to encode")
+        return b''
+
 # Datasheet (AN5603) pg 54
 class SFlashCmd(G3Cmd):
     g3_id = 0x0E
@@ -428,8 +588,10 @@ class PhyDataCmd(G3Cmd):
     g3_name = 'G3PHY-DATA'
     rx_msgs = ['G3PHY-DATA']
 
+    SUBPARSER_NAME = 'phydata'  # as a variable because it's referenced externally by TestSetCmd
+
     def _add_parser(self, subparsers):
-        parser = subparsers.add_parser('phydata', help='Send data over the phy')
+        parser = subparsers.add_parser(self.SUBPARSER_NAME, help='Send data over the PLC phy')
         parser.add_argument('--txpwr', default=16, type=int, help='Set Tx power. 0-32. Default 16.')
         parser.add_argument('--modtype', default='Robust', choices=list(G3C.G3_PHY_MODTYPE_R.keys()), help='Modulation type')
         parser.add_argument('--modscheme', default='Differential', choices=list(G3C.G3_PHY_MODSCHEME_R.keys()), help='Modulation scheme')
@@ -455,7 +617,7 @@ class PhyDataCmd(G3Cmd):
             args.tonemap = 'ffffff'
             self.fields['tonemap'] = binascii.unhexlify(args.tonemap)
         self.fields['dt'] = 1
-        self.fields['twosrsblock'] = 0
+        self.fields['tworsblock'] = 0
         self.fields['data'] = g3_comms.g3_msgs.parse_data(args.data)
         logging.debug(self.fields)
 
@@ -511,8 +673,10 @@ class PhyRfCmd(G3Cmd):
     g3_name = 'G3PHY-RF'
     rx_msgs = ['G3PHY-RF']
 
+    SUBPARSER_NAME = 'phyrf'  # as a variable because it's referenced externally by TestSetCmd
+
     def _add_parser(self, subparsers):
-        parser = subparsers.add_parser('phyrf', help='Send data over the RF')
+        parser = subparsers.add_parser(self.SUBPARSER_NAME, help='Send data over the RF phy')
         parser.add_argument('data', help="Data as string or hex with '0x' in little endian byte order")
         return parser
 

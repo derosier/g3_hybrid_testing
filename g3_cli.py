@@ -34,6 +34,8 @@ parser.add_argument("-P", "--pcm", action="store_true", help="Set PCM in pass-th
 # Instantiate a global instance of every response we want to process on Rx
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.UARTBaudSetResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.TestSetResp())
+g3_comms.g3_msgs.msg_decode_list.append(g3_resp.TestGetResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.SFlashResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.NVMResp())
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.DBGToolResp())
@@ -69,6 +71,8 @@ g3_comms.g3_msgs.msg_decode_list.append(g3_resp.MetaError())
 # Instantiate a global instance of every command we might want to send
 g3_comms.g3_msgs.msg_cmds['hwreset'] = g3_cmd.HWResetCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['speed'] = g3_cmd.UARTBaudSetCmd(subparsers)
+g3_comms.g3_msgs.msg_cmds['testset'] = g3_cmd.TestSetCmd(subparsers)
+g3_comms.g3_msgs.msg_cmds['testget'] = g3_cmd.TestGetCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['sflash'] = g3_cmd.SFlashCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['nvm'] = g3_cmd.NVMCmd(subparsers)
 g3_comms.g3_msgs.msg_cmds['dbgtool'] = g3_cmd.DBGToolCmd(subparsers)
@@ -134,6 +138,7 @@ def do_g3_cmd(device, dryrun):
             g3_comms.g3_msgs.msg_cmds[args.cmd].clean_rx(g3_comms.g3_msgs.msg_decode_list)
             if args.cmd == "speed":
                 device.baudrate = args.speed
+            print("done")
     except KeyError:
         print(f"Unrecognized command {args.cmd}. Exiting.")
 

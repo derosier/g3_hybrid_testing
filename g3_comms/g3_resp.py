@@ -76,6 +76,28 @@ class UARTBaudSetResp(G3Resp):
     def pr_decode(self):
         logging.info(f'Reply {self.g3_name}: {self.fields}')
 
+class TestSetResp(G3Resp):
+    g3_id = 0x0B
+    g3_name = 'HOSTIF-TESTSET'
+
+    def pr_decode(self):
+        logging.info('Test settings confirmed (no payload contents)')
+
+class TestGetResp(G3Resp):
+    g3_id = 0x0D
+    g3_name = 'HOSTIF-TESTGET'
+
+    def decode(self, msg):
+        super().decode(msg)
+        raw_fields = struct.unpack_from("<III", msg['data'], 1)
+        self.raw_fields = raw_fields
+        self.fields['nbpackets'] = raw_fields[0]
+        self.fields['nbbytes'] = raw_fields[1]
+        self.fields['duration_ms'] = raw_fields[2]
+
+    def pr_decode(self):
+        logging.info(f"Test status: {self.fields['nbpackets']} packets / {self.fields['nbbytes']} bytes sent, {self.fields['duration_ms']} ms elapsed")
+
 # Datasheet (AN5603) pg 54
 class SFlashResp(G3Resp):
     g3_id = 0x0f
