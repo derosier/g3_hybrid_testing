@@ -301,12 +301,20 @@ NVM_PLC_SIZE = {
 # PIB table values
 #
 # IDs are 4 byte integers
-# Data values are strings, hex strings if integers
+# Data values are strings, hex strings in little-endian order if integers
 
 G3_LIB_PECHANNELCONFIG_ID = 0x00003202
 G3_MEDIA_ALL = "0x0F000000"
 G3_MEDIA_PLC = "0x03000000"
 G3_MEDIA_RF = "0x0C000000"
+
+# G3_MEDIA_STRING is to decode the response, which already converts the little-endian integer to
+# proper order, so the mask is simplified.
+G3_MEDIA_STRING = {
+    0x0F: "ALL",
+    0x03: "PLC",
+    0x0C: "RF",
+}
 
 G3_MAC_MAXTXPOWER_ID = 0x0000328A
 G3_MAC_MAXTXPOWER_MAX = '0x20'

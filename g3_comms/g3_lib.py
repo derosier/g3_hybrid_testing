@@ -188,6 +188,20 @@ def set_speed(device, speed):
     logging.debug(f"Serial port baud rate updated to {speed}")
     return (True, fields['status'])
 
+def get_media(device):
+    cmd_args = argparse.Namespace()
+    cmd_args.id = g3_comms.g3_consts.G3_LIB_PECHANNELCONFIG_ID
+    cmd_args.index = 0
+    get_cmd = g3_cmd.G3GetCmd()
+    get_cmd.parse_args(cmd_args)
+    get_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
+    fields = g3_comms.g3_tx.send_and_wait(device, get_cmd)
+    get_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
+    if not check_status_ok(fields):
+        logging.error("Error getting media value.")
+        return (False, fields['status'])
+    return (True, fields['data'])
+
 def set_media(device, value):
     cmd_args = argparse.Namespace()
     cmd_args.id = g3_comms.g3_consts.G3_LIB_PECHANNELCONFIG_ID
