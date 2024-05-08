@@ -220,3 +220,67 @@ def send_udp(device, connid, handle, packet, print_progress=False):
         logging.error("G3UDP-DATA unsuccessful.")
         return (False, fields['status'])
     return (True, fields['status'])
+
+def get_plc_txpwr(device):
+    cmd_args = argparse.Namespace()
+    cmd_args.id = g3_comms.g3_consts.G3_MAC_MAXTXPOWER_ID
+    cmd_args.index = 0
+    get_cmd = g3_cmd.G3GetCmd()
+    get_cmd.parse_args(cmd_args)
+    get_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
+    fields = g3_comms.g3_tx.send_and_wait(device, get_cmd)
+    get_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
+    if not check_status_ok(fields):
+        logging.error("Error getting PLC TX power value.")
+        return (False, fields['status'])
+    return (True, fields['data'])
+
+def set_plc_txpwr(device, value):
+    if g3_comms.g3_msgs.parse_over(value, g3_comms.g3_consts.G3_MAC_MAXTXPOWER_MAX):
+        logging.error(f"PLC TX power {value} > G3_MAC_MAXTXPOWER_MAX")
+        return (False, 'TX Power out of bounds')
+    cmd_args = argparse.Namespace()
+    cmd_args.id = g3_comms.g3_consts.G3_MAC_MAXTXPOWER_ID
+    cmd_args.index = 0
+    cmd_args.data = value
+    set_cmd = g3_cmd.G3SetCmd()
+    set_cmd.parse_args(cmd_args)
+    set_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
+    fields = g3_comms.g3_tx.send_and_wait(device, set_cmd)
+    set_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
+    if not check_status_ok(fields):
+        logging.error(f"Error setting PLC TX power to {value}.")
+        return (False, fields['status'])
+    return (True, fields['status'])
+
+def get_plc_ackpwr(device):
+    cmd_args = argparse.Namespace()
+    cmd_args.id = g3_comms.g3_consts.G3_PHY_PHYACKTXPOWER_ID
+    cmd_args.index = 0
+    get_cmd = g3_cmd.G3GetCmd()
+    get_cmd.parse_args(cmd_args)
+    get_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
+    fields = g3_comms.g3_tx.send_and_wait(device, get_cmd)
+    get_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
+    if not check_status_ok(fields):
+        logging.error("Error getting PLC ACK TX power value.")
+        return (False, fields['status'])
+    return (True, fields['data'])
+
+def set_plc_ackpwr(device, value):
+    if g3_comms.g3_msgs.parse_over(value, g3_comms.g3_consts.G3_PHY_PHYACKTXPOWER_MAX):
+        logging.error(f"PLC ACK power {value} > G3_PHY_PHYACKTXPOWER_MAX")
+        return (False, 'ACK Power out of bounds')
+    cmd_args = argparse.Namespace()
+    cmd_args.id = g3_comms.g3_consts.G3_PHY_PHYACKTXPOWER_ID
+    cmd_args.index = 0
+    cmd_args.data = value
+    set_cmd = g3_cmd.G3SetCmd()
+    set_cmd.parse_args(cmd_args)
+    set_cmd.setup_rx(g3_comms.g3_msgs.msg_decode_list)
+    fields = g3_comms.g3_tx.send_and_wait(device, set_cmd)
+    set_cmd.clean_rx(g3_comms.g3_msgs.msg_decode_list)
+    if not check_status_ok(fields):
+        logging.error(f"Error setting PLC ACK TX power to {value}.")
+        return (False, fields['status'])
+    return (True, fields['status'])

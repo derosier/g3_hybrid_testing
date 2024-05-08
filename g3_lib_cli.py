@@ -5,7 +5,9 @@ from g3_comms import g3_lib
 from g3_comms.g3_msgs import parse_data
 import g3_comms.g3_consts
 
-implmented_cmds = ['get-panid', 'get-sa', 'get-nvm-help', 'get-nvm', 'set-nvm-psk', 'set-nvm-pskidx', 'set-nvm-panid', 'set-nvm-sa']
+implmented_cmds = ['get-panid', 'get-sa', 'get-nvm-help', 'get-nvm',
+                   'set-nvm-psk', 'set-nvm-pskidx', 'set-nvm-panid', 'set-nvm-sa',
+                   'get-plc-txpwr', 'set-plc-txpwr', 'get-plc-ackpwr', 'set-plc-ackpwr']
 
 class LibCLI():
     def __init__(self, subparsers):
@@ -28,6 +30,13 @@ class LibCLI():
         panparser.add_argument('panid', type=int, help="PANID to set in the NVM")
         saparser = subparsers.add_parser('set-nvm-sa', help='Set the Short Address NVM')
         saparser.add_argument('sa', type=int, help="Short Address to set in the NVM")
+        subparsers.add_parser('get-plc-txpwr', help='Get the maximum TX power for the PLC')
+        plctxpwr_parser = subparsers.add_parser('set-plc-txpwr', help='Set the maximum TX power for the PLC')
+        plctxpwr_parser.add_argument('plctxpwr', type=int, choices=range(0, 0x21), help="TX power integer <= 32")
+        subparsers.add_parser('get-plc-ackpwr', help='Get the maximum TX power for the PLC')
+        plctxpwr_parser = subparsers.add_parser('set-plc-ackpwr', help='Set the maximum TX power for the PLC')
+        plctxpwr_parser.add_argument('plcackpwr', type=int, choices=range(0, 0x21), help="TX power integer <= 32")
+
 
     def list_nvm_fields(self):
         print("NVM field names for PLC:")
@@ -70,5 +79,25 @@ class LibCLI():
                 print(f"Set Short Address {args.sa} OK")
             else:
                 print(f"Unable to set Short Address: {status}")
+        elif args.cmd == 'get-plc-txpwr':
+            pwr = g3_lib.get_plc_txpwr(device)
+            print(f"PLC max TX Power: {pwr}")
+        elif args.cmd == 'set-plc-txpwr':
+            pwr_hexstr = '0x' + f'{args.plctxpwr:02x}'
+            (ok, status) = g3_lib.set_plc_txpwr(device, pwr_hexstr)
+            if ok:
+                print(f"PLC max TX Power {args.plctxpwr} OK")
+            else:
+                print(f"Unable to set PLC max TX Power: {status}")
+        elif args.cmd == 'get-plc-ackpwr':
+            pwr = g3_lib.get_plc_ackpwr(device)
+            print(f"PLC max ACK Power: {pwr}")
+        elif args.cmd == 'set-plc-ackpwr':
+            pwr_hexstr = '0x' + f'{args.plcackpwr:02x}'
+            (ok, status) = g3_lib.set_plc_ackpwr(device, pwr_hexstr)
+            if ok:
+                print(f"PLC max ACK Power {args.plcackpwr} OK")
+            else:
+                print(f"Unable to set PLC max ACK Power: {status}")
         else:
             logging.error(f"Incorrect G3Lib command {args.cmd}")

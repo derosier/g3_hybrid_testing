@@ -31,6 +31,42 @@ def parse_data(argdata):
         data = bytes(argdata, 'utf-8')
     return data
 
+def parse_over(argdata, maxvalue):
+    isover = False
+    if isinstance(maxvalue, str):
+        maxvalue = int(maxvalue, 16)
+    if argdata[:2] == '0x':
+        data = int(argdata, 16)
+        if data > maxvalue:
+            isover = True
+    else:
+        raise TypeError
+    return isover
+
+def parse_under(argdata, minvalue):
+    isunder = False
+    if isinstance(minvalue, str):
+        minvalue = int(minvalue, 16)
+    if argdata[:2] == '0x':
+        data = int(argdata, 16)
+        if data < minvalue:
+            isunder = True
+    else:
+        raise TypeError
+    return isunder
+
+def parse_equal(argdata, value):
+    isequal = False
+    if isinstance(value, str):
+        value = int(value, 16)
+    if argdata[:2] == '0x':
+        data = int(argdata, 16)
+        if data == value:
+            isequal = True
+    else:
+        raise TypeError
+    return isequal
+
 def hi_ipv6_set_ipaddr(short_addr, pan_id=G3C.G3_DEFAULT_PAN):
     logging.debug(f"encoding ipv6 address from short {short_addr} on pan {pan_id}")
     if short_addr < 0:

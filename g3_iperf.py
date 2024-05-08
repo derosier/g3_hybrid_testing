@@ -67,6 +67,8 @@ parser.add_argument("-P", "--pcm", action="store_true", help="Set PCM into pass-
 parser.add_argument("-T", "--time", type=int, default=PING_MAX_TIME, help="Time to run the test for, default 60 seconds.")
 parser.add_argument("-i", "--interval", type=int, default=60, help="Interim reporting interval, default 60 seconds.")
 parser.add_argument("-r", "--rate", type=int, default=0, help="Rate to send pings at, in seconds; default 0==as fast as possible.")
+parser.add_argument("--plctxpwr", type=int, choices=range(0, 0x21), help="TX power integer <= 32")
+
 
 # Instantiate a global instance of every response we want to process on Rx
 g3_comms.g3_msgs.msg_decode_list.append(g3_resp.HWResetResp())
@@ -907,6 +909,19 @@ def main():
     elif args.media == 'plc':
         (media_ok, _) = g3_lib.set_media(device, g3_comms.g3_consts.G3_MEDIA_PLC)
 
+    # Change PLC TX power if requested
+    txpwr_ok, start_plctxpwr = g3_lib.get_plc_txpwr(device)
+    start_plctxpwr = '0x' + f'{start_plctxpwr:02x}'
+    _, start_plcackpwr = g3_lib.get_plc_ackpwr(device)
+    start_plcackpwr = '0x' + f'{start_plcackpwr:02x}'
+    if txpwr_ok:
+        try:
+            new_plctxpwr = '0x' + f'{args.plctxpwr:02x}'
+            g3_lib.set_plc_txpwr(device, new_plctxpwr)
+            g3_lib.set_plc_ackpwr(device, new_plctxpwr)
+        except AttributeError:
+            new_plctxpwr = None
+
     # Change UART baudrate
     speed_ok = True
     if args.pcm:
@@ -931,8 +946,12 @@ def main():
 
     # Cleanup and quit
     g3_lib.set_speed(device, baudrate) # restore to whatever speed we started with
-    if args.media != 'all':
+    if new_plctxpwr and txpwr_ok: # Reset PLC TX power iff we changed it
+        g3_lib.set_plc_txpwr(device, start_plctxpwr)
+        g3_lib.set_plc_ackpwr(device, start_plcackpwr)
+    if args.media != 'all': # Reset media
         g3_lib.set_media(device, g3_comms.g3_consts.G3_MEDIA_ALL)
+
 
     g3_comms.g3_rx.G3Rx.quit()
     rx_thread.join()
