@@ -69,6 +69,7 @@ parser.add_argument("-i", "--interval", type=int, default=60, help="Interim repo
 parser.add_argument("-r", "--rate", type=int, default=0, help="Rate to send pings at, in seconds; default 0==as fast as possible.")
 # `plctxpwr` has no default because we detect that in the logic and use it not being set to NOT send the commands to the chip
 parser.add_argument("--plctxpwr", type=int, choices=range(0, 0x21), help="TX power integer <= 32")
+parser.add_argument("-x", "--nohwreset", action="store_true", help="Disable the HWRESET command issue on startup.")
 
 
 # Instantiate a global instance of every response we want to process on Rx
@@ -343,7 +344,7 @@ def init_board_server(device):
         return True
 
     # 2. HWRESET
-    if args.pcm:
+    if args.nohwreset:
         logging.debug("PCM mode does not issue HOSTIF-HWRESET. Continuing board setup.")
     else:
         if not g3_lib.hw_reset(device):
@@ -603,7 +604,7 @@ def init_board_client(device):
         return True
 
     # 2. HWRESET
-    if args.pcm:
+    if args.nohwreset:
         logging.debug("PCM mode does not issue HOSTIF-HWRESET. Continuing board setup.")
     else:
         if not g3_lib.hw_reset(device):
@@ -866,6 +867,10 @@ def main():
             logging.error("\n\tERROR: Cannot log data without matching metadata!"
                   "\n\tPlease run the 'chronos_tools_cli.py' script to create the metadata file"
                   "\n\tfor the activity named {%s}",args.activity)
+
+    # if we're on a PCM, force the nohwreset flag even if not set
+    if args.pcm:
+        args.nohwreset = True
 
     signal.signal(signal.SIGINT, shutdown_handler)
 
