@@ -67,6 +67,7 @@ parser.add_argument("-P", "--pcm", action="store_true", help="Set PCM into pass-
 parser.add_argument("-T", "--time", type=int, default=PING_MAX_TIME, help="Time to run the test for, default 60 seconds.")
 parser.add_argument("-i", "--interval", type=int, default=60, help="Interim reporting interval, default 60 seconds.")
 parser.add_argument("-r", "--rate", type=int, default=0, help="Rate to send pings at, in seconds; default 0==as fast as possible.")
+# `plctxpwr` has no default because we detect that in the logic and use it not being set to NOT send the commands to the chip
 parser.add_argument("--plctxpwr", type=int, choices=range(0, 0x21), help="TX power integer <= 32")
 
 
@@ -919,7 +920,7 @@ def main():
             new_plctxpwr = '0x' + f'{args.plctxpwr:02x}'
             g3_lib.set_plc_txpwr(device, new_plctxpwr)
             g3_lib.set_plc_ackpwr(device, new_plctxpwr)
-        except AttributeError:
+        except (AttributeError, TypeError):
             new_plctxpwr = None
 
     # Change UART baudrate
