@@ -861,12 +861,9 @@ def main():
     # Check for existence of metadata for logging (if applicable)
     if args.client and not args.activity is None:
         # Check to make sure that there exists a metadata file created previously
-        # using the `chronos_tools_cli.py` script prior to running this
         file_name = "temp/"+args.activity+"_metadata.json"
         if not os.path.isfile(file_name):
-            logging.error("\n\tERROR: Cannot log data without matching metadata!"
-                  "\n\tPlease run the 'chronos_tools_cli.py' script to create the metadata file"
-                  "\n\tfor the activity named {%s}",args.activity)
+            logging.error("\n\tERROR: Cannot log data without matching metadata!")
 
     # if we're on a PCM, force the nohwreset flag even if not set
     if args.pcm:
